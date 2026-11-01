@@ -56,7 +56,9 @@ unrelated settings and plugin configuration are left intact. `GERBER_CONFIG_PATH
 selects the user configuration file for the Core channel as well as other user
 settings; it cannot override Core's repository, endpoint or installation scope.
 
-Each plugin declares its own repository directly in its installed manifest:
+In authored `project.json`, each plugin declares
+`Manifest.PrivateData.Gerber.Repository = { "Name": "ExampleFeed", "Uri": "https://packages.example.test/api/v2" }`.
+Nova carries that canonical descriptor into the installed manifest:
 
 ```powershell
 PrivateData = @{
@@ -64,14 +66,24 @@ PrivateData = @{
         Plugin = $true
         ApiVersion = '1'
         MinimumGerberVersion = '0.2.0'
-        RepositoryUri = 'https://packages.example.test/api/v2'
+        Repository = @{
+            Name = 'ExampleFeed'
+            Uri = 'https://packages.example.test/api/v2'
+        }
     }
 }
 ```
 
-`RepositoryUri` is optional: only an absent key defaults to
-`https://www.powershellgallery.com/api/v2`. An invalid declaration is unavailable,
-with no fallback. Do not introduce an intermediate `Update` key, repository
+The overview shows `Repository.Name`, including `Unavailable` and
+`NoMatchingPackage` lookup results; PMU receives `Repository.Uri`. Trust/license
+confirmation continues to show the actual URL, not merely its display name.
+Gerber reads the current installed manifest, not cached module PrivateData.
+Absent repository metadata defaults to `PSGallery` and
+`https://www.powershellgallery.com/api/v2`; invalid explicit metadata never
+falls back. Legacy `RepositoryUri` remains compatible: the official Gallery URL
+maps to PSGallery, while other URLs keep their raw display until a name is added.
+When both keys exist, the canonical `Repository` object wins, even if the legacy
+value is invalid. Do not introduce an intermediate `Update` key, repository
 registration requirement or credentials in metadata. Different plugins can use
 different feeds. Core's resolver never consults this metadata.
 

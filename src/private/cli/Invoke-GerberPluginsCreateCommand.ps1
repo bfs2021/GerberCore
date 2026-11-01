@@ -69,13 +69,11 @@ Example command:
 function Get-GerberPluginProjectRepositorySummary {
     param([pscustomobject]$Result)
 
-    if (-not $Result.PSObject.Properties['RepositoryUri']) {
-        return 'Repository: PSGallery (RepositoryUri omitted)'
+    $summary = "Repository: $($Result.Repository.Name)`nURI:        $($Result.Repository.Uri)"
+    if ($Result.Repository.Uri -ceq 'REPLACE_WITH_REPOSITORY_URI') {
+        return "$summary`nReplace Manifest.PrivateData.Gerber.Repository.Uri before remote publishing or updates."
     }
-    if ($Result.RepositoryUri -ceq 'REPLACE_WITH_REPOSITORY_URI') {
-        return "Repository: $($Result.RepositoryUri)`nReplace Manifest.PrivateData.Gerber.RepositoryUri before remote publishing or updates."
-    }
-    return "Repository: $($Result.RepositoryUri) (Manifest.PrivateData.Gerber.RepositoryUri)"
+    return $summary
 }
 
 function Invoke-GerberPluginProjectCreationPrompt {

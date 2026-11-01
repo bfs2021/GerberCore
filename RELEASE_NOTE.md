@@ -45,8 +45,11 @@
   appear together in the same aligned overview table, with a blank line before
   the channel and no per-plugin information lines. When no update is available,
   Enter returns without a chooser or cancellation message. Plugin manifests
-  declare `PrivateData.Gerber.RepositoryUri`; an absent key uses the official
-  Gallery, while an explicit invalid value does not fall back. Trust/license-gated package
+  declare `PrivateData.Gerber.Repository` with a display `Name` and canonical `Uri`.
+  Names stay visible when lookup fails; PMU and trust prompts retain the URI.
+  Absent metadata uses PSGallery; invalid explicit metadata never falls back.
+  Legacy `RepositoryUri` still works, with canonical metadata taking precedence.
+  Trust/license-gated package
   inspection asks separately before the combined default-Cancel install prompt.
   Updates run sequentially; dependent plugins are blocked on Core failure while
   independent updates continue. Results distinguish installed packages from
@@ -68,12 +71,14 @@
 - `/plugins create` creates a working Gerber plugin: enter `MyCompany` to get
   `Gerber.MyCompany`, choose its `mycompany` command namespace, repository and destination parent,
   then let Gerber build and test it before approval. Existing files are never overwritten.
-  PSGallery is the default and omits `RepositoryUri`. For another repository,
-  enter its URL or leave it empty to write `REPLACE_WITH_REPOSITORY_URI` in
-  `project.json`; replace it and rebuild before remote publishing or updates.
+  PSGallery is preselected and writes its name and official URI without extra
+  questions. Another repository asks for its name, then URL; blank names can
+  be corrected locally. Enter for an unknown URL writes
+  `REPLACE_WITH_REPOSITORY_URI` in `Repository.Uri`; replace it in `project.json`
+  and rebuild before remote publishing or updates. Esc cancels without generation.
   Local build, tests and local publication remain available.
   Explained, separated fields show actual defaults; the completion summary states
-  the generated metadata and **Installed: No**. Before installation, `/plugins list`
+  the repository name and URI, generated metadata and **Installed: No**. Before installation, `/plugins list`
   and `/plugins info` already show the known name/version without loading anything.
   Projects include a canonical manifest GUID, a complete Unreleased changelog and
   Gerber-specific agent resources led by AGENTS.md with thin Claude/Copilot bridges.

@@ -25,6 +25,14 @@ Describe 'Assert-GerberPluginProjectInput' -Tag 'PluginCreate' {
     }
 
     Context 'repository input' -Tag 'PluginCreateRepository' {
+        It 'rejects blank repository names with local recovery guidance' -ForEach @('', ' ') {
+            { Assert-GerberPluginProjectInput -Field RepositoryName -Value $_ } | Should -Throw '*repository name*Esc*'
+        }
+
+        It 'accepts a custom repository display name' {
+            { Assert-GerberPluginProjectInput -Field RepositoryName -Value 'ExampleFeed' } | Should -Not -Throw
+        }
+
         It 'accepts <Value> for explicit creation metadata' -ForEach @(
             @{ Value = 'https://packages.example.org/feed' }
             @{ Value = 'REPLACE_WITH_REPOSITORY_URI' }

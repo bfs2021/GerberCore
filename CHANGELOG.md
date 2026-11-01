@@ -9,8 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Added G-4A9 installed-plugin update selection to `/update list`, using the
-  existing shared channel and per-plugin `PrivateData.Gerber.RepositoryUri`
-  (official Gallery only when absent, invalid values never fall back).
+  existing shared channel and per-plugin `PrivateData.Gerber.Repository`
+  descriptors (`Name` for display, canonical `Uri` for PMU). Names survive
+  unavailable/no-matching-package lookup results. Absent metadata defaults to
+  PSGallery and its official URI; invalid declarations never fall back.
+  Legacy `RepositoryUri` remains supported, mapping the official Gallery URL
+  to PSGallery and retaining custom raw URL display until a name is added.
+  Canonical metadata wins when both keys exist. Current installed manifests
+  remain authoritative over cached module metadata; trust prompts retain URLs.
   Only installed, associated, approved, enabled plugins participate; startup
   remains Core-only. Shared checkbox selection, separately confirmed
   trust/license-gated package inspection and a default-Cancel combined install
@@ -28,11 +34,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   The new PMU target-manifest inspection API remains locally implemented,
   unpublished and undeployed; numeric minimum stays 0.2.0. No hosted/live
   qualification implied.
-- Added repository selection to `/plugins create`. PSGallery is the default and
-  omits `Manifest.PrivateData.Gerber.RepositoryUri`; another repository accepts
-  a safe absolute URL or writes `REPLACE_WITH_REPOSITORY_URI` when unknown.
-  The completion summary identifies the choice and placeholder replacement
-  requirement. Unsafe URLs can be corrected; cancellation generates nothing.
+- Added repository selection to `/plugins create`. PSGallery is preselected and
+  generates an explicit `Manifest.PrivateData.Gerber.Repository` object with
+  `Name = PSGallery` and its official `Uri`, without additional questions.
+  Another repository asks for a name followed by a safe absolute URL, or writes
+  `REPLACE_WITH_REPOSITORY_URI` in `Repository.Uri` when unknown. Requests,
+  results, generated JSON and manifests retain the canonical descriptor.
+  The completion summary shows name and URI plus placeholder replacement
+  guidance. Blank names and unsafe URLs can be corrected locally; Esc at the
+  chooser, name or URI cancels without generation.
   An unreplaced placeholder remains invalid for updates without Gallery fallback.
 
 ### Changed

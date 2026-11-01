@@ -50,11 +50,15 @@ discovery view and checkbox screen. Cover the no-available-update path without
 a chooser, installation or false cancellation message. Assert a blank line
 before the shared channel and no per-plugin information footer.
 
-For `/plugins create`, cover the default PSGallery choice without a
-`RepositoryUri` property, a known custom URL, an unknown URL placeholder, unsafe
-URL recovery and cancellation before generation. Generated JSON and manifests
-must retain the selected metadata; an unreplaced placeholder must remain invalid
-for update discovery rather than falling back to PSGallery.
+For `/plugins create`, cover the explicit default PSGallery `Repository` object
+without extra questions, a custom name followed by its URL, blank-name recovery,
+an unknown URL placeholder, unsafe URL recovery and cancellation before generation.
+Generated JSON, creation requests/results and manifests must retain both `Name`
+and `Uri`; an unreplaced `Repository.Uri` placeholder must remain invalid for
+update discovery rather than falling back to PSGallery. Assert named update rows
+on lookup failure and that PMU receives the URI, not the name. Preserve current
+installed-manifest reads and legacy `RepositoryUri` compatibility; the canonical
+object wins when both declarations exist. Trust confirmations still show the URL.
 
 The declared PMU minimum remains `0.2.0`; its new target-manifest inspection API
 is not published. Mocked PTY results and an isolated local PMU build do not prove

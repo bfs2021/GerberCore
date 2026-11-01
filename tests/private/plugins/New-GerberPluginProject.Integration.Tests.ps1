@@ -19,7 +19,7 @@ Describe 'New-GerberPluginProject isolated lifecycle integration' -Tag 'PluginCr
     }
 
     It 'builds, tests, locally publishes and discovers the approved GUID on fresh startup with <Label>' -ForEach @(
-        @{ Label = 'PSGallery omission'; RepositoryUri = $null }
+        @{ Label = 'explicit PSGallery descriptor'; RepositoryUri = $null }
         @{ Label = 'known repository URI'; RepositoryUri = 'https://packages.example.org/feed' }
         @{ Label = 'unknown repository placeholder'; RepositoryUri = 'REPLACE_WITH_REPOSITORY_URI' }
     ) {

@@ -55,6 +55,14 @@ are not language-enforced private. Shared helpers belong in `src/private/`.
 
 ## Identity and lifecycle
 
+`Manifest.PrivateData.Gerber.Repository` is the plugin's repository descriptor:
+`Name` is the label shown by `/update list`; `Uri` is the canonical absolute
+endpoint sent to PSModuleUpdate. The generated default is `PSGallery` with
+`https://www.powershellgallery.com/api/v2`. Preserve the custom name and replace
+`REPLACE_WITH_REPOSITORY_URI` in `Repository.Uri` before remote publishing or
+updates. Do not store credentials, query parameters or fragments. Invalid
+explicit metadata never falls back to Gallery.
+
 `project.json` **Manifest.GUID** is the permanent identity: `{{Guid}}`.
 Keep it stable across versions. Changing it creates a new approval and secret
 identity, not an update. Nova propagates it into the built module manifest.

@@ -20,6 +20,7 @@ Describe 'Invoke-GerberPluginsCreateCommand' -Tag 'PluginCreate' {
                 Name = 'Gerber.MyCompany'; Version = '0.1.0'
                 Path = (Join-Path $TestDrive "parent's projects/Gerber.MyCompany")
                 Guid = 'fixture-guid'; Namespace = 'mycompany'
+                Repository = @{ Name = 'PSGallery'; Uri = 'https://www.powershellgallery.com/api/v2' }
             }
         }
     }
@@ -108,20 +109,19 @@ Describe 'Invoke-GerberPluginsCreateCommand' -Tag 'PluginCreate' {
     }
 
     It 'summarizes <Label> and its metadata action honestly' -Tag 'PluginCreateRepository' -ForEach @(
-        @{ Label = 'PSGallery'; Uri = $null; Pattern = 'Repository:\s+PSGallery'; Guidance = 'RepositoryUri omitted' }
-        @{ Label = 'known custom repository'; Uri = 'https://packages.example.org/feed'; Pattern = 'Repository:\s+https://packages.example.org/feed'; Guidance = 'RepositoryUri' }
-        @{ Label = 'unknown custom repository'; Uri = 'REPLACE_WITH_REPOSITORY_URI'; Pattern = 'Repository:\s+REPLACE_WITH_REPOSITORY_URI'; Guidance = 'Replace.*before.*publish.*update' }
+        @{ Label = 'PSGallery'; Name = 'PSGallery'; Uri = 'https://www.powershellgallery.com/api/v2'; Guidance = 'https://www.powershellgallery.com/api/v2' }
+        @{ Label = 'known custom repository'; Name = 'ExampleFeed'; Uri = 'https://packages.example.org/feed'; Guidance = 'https://packages.example.org/feed' }
+        @{ Label = 'unknown custom repository'; Name = 'ExampleFeed'; Uri = 'REPLACE_WITH_REPOSITORY_URI'; Guidance = 'Replace.*Repository.Uri.*before.*publish.*update' }
     ) {
         $result = [pscustomobject]@{
             Name = 'Gerber.MyCompany'; Version = '0.1.0'; Path = $TestDrive
             Guid = 'fixture-guid'; Namespace = 'mycompany'
-        }
-        if ($null -ne $Uri) {
-            $result | Add-Member RepositoryUri $Uri
+            Repository = @{ Name = $Name; Uri = $Uri }
         }
         Show-GerberPluginProjectCreationSummary -Result $result
         $summary = $script:blocks | Where-Object Title -EQ 'Gerber Plugin Created'
-        $summary.Text | Should -Match $Pattern
+        $summary.Text | Should -Match "Repository:\s+$Name"
+        $summary.Text | Should -Match ([regex]::Escape($Uri))
         $summary.Text | Should -Match $Guidance
     }
 }

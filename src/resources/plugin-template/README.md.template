@@ -38,6 +38,14 @@ Nova generates `dist/{{Name}}/{{Name}}.psd1` and `.psm1` from
 Keep the manifest GUID `{{Guid}}` stable when updating this plugin.
 `Manifest.PrivateData.Gerber` declares API v1 and the minimum Core version.
 
+Its `Repository` object contains the display `Name` and canonical `Uri` used
+for plugin updates. The generated default explicitly names `PSGallery` and
+`https://www.powershellgallery.com/api/v2`. For another feed, retain its name
+and replace `REPLACE_WITH_REPOSITORY_URI` in `Repository.Uri` with the real
+absolute URL before remote publishing or updates. Keep credentials, query
+parameters and fragments out of the URI. Invalid declarations never fall back
+to PSGallery; local development and local publish still work with a placeholder.
+
 Local publish builds/tests and copies the module into your PowerShell module
 directory, replacing that module there. To isolate a test installation, use
 `Publish-NovaModule -Local -ModuleDirectoryPath <isolated-directory>`.

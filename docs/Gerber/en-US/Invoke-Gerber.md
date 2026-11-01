@@ -4,7 +4,7 @@ external help file: Gerber-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: Gerber
-ms.date: 10.31.2026
+ms.date: 11.01.2026
 PlatyPS schema version: 2024-05-01
 title: Invoke-Gerber
 ---
@@ -55,9 +55,14 @@ Root slash browsing includes `/exit`, `/help`, `/plugins`, `/update`, `/branch`,
 `/update list` performs fresh Core and eligible installed-plugin discovery and
 shows installed/available versions, repository and status. Core always uses the
 official PSGallery endpoint. Only discovered, associated, approved, enabled
-plugins participate, using direct `PrivateData.Gerber.RepositoryUri` manifest
-metadata. An absent key defaults to the official Gallery; an invalid declaration
-never falls back. Startup remains Core-only.
+plugins participate, using `PrivateData.Gerber.Repository` from the current
+installed manifest: `Name` is displayed and canonical `Uri` is sent to PMU.
+The name remains visible on unavailable/no-matching-package lookup results.
+Absent metadata defaults to PSGallery and its official endpoint; invalid explicit
+metadata never falls back. Legacy `RepositoryUri` is supported, mapping the
+official Gallery URL to PSGallery and retaining custom raw URL display until a
+name is added. Canonical metadata takes precedence when both keys exist.
+Trust confirmations retain the actual URL. Startup remains Core-only.
 
 When plugin rows exist, use Up/Down and Space in the shared checkbox to select
 available updates, then Enter to review. Exact selected-package inspection checks
@@ -114,13 +119,15 @@ source diagnostic; no automatic installation migration is performed.
 `/plugins create` asks for a module suffix behind a fixed `Gerber.` prefix,
 description, unused command namespace, repository choice, and existing
 destination parent (current directory by default). The shared repository chooser
-appears after the namespace and defaults to PSGallery, which omits
-`Manifest.PrivateData.Gerber.RepositoryUri` entirely. Another repository asks for
-a known absolute URI without credentials, query or fragment, or Enter if unknown.
-Known URIs are stored directly in that metadata key, without an Update
-intermediary; Enter writes `REPLACE_WITH_REPOSITORY_URI`. Invalid URI input stays
-at the prompt with correction guidance, and shared Esc cancels from the chooser
-or URI input without creation or approval. It generates and validates a working Plugin API v1 Nova
+appears after the namespace and defaults to PSGallery, which writes an explicit
+`Manifest.PrivateData.Gerber.Repository` object with its `Name` and official `Uri`
+without further repository questions. Another repository asks for its name,
+then a known absolute URI without credentials, query or fragment, or Enter if
+unknown. Blank names are corrected locally. Known URIs are stored in
+`Repository.Uri`, without an Update intermediary; Enter writes
+`REPLACE_WITH_REPOSITORY_URI`. Invalid URI input stays at the prompt with
+correction guidance, and shared Esc cancels from the chooser, name or URI input
+without creation or approval. It generates and validates a working Plugin API v1 Nova
 project in a new child directory without overwriting existing files. Successful
 creation approves, associates and enables the generated manifest GUID, but does
 not install or load the plugin. Run `Publish-NovaModule -Local` from that project,
@@ -130,9 +137,9 @@ on demand; the creation handler's missing-tool fallback requires consent. Shared
 navigation cancels, and invalid input can be corrected without approval.
 Creation fields have separated headings, descriptions, examples and visible
 current-directory/project-child defaults. The completion summary shows actual
-name, version, namespace, location, repository choice and lifecycle state,
+name, version, namespace, location, repository name and URI, and lifecycle state,
 explicitly Installed: No. A placeholder summary requires replacing
-`Manifest.PrivateData.Gerber.RepositoryUri` before remote publishing or updates.
+`Manifest.PrivateData.Gerber.Repository.Uri` before remote publishing or updates.
 Build, tests and isolated local publish still work; update consumption rejects
 the explicit placeholder without package lookup or Gallery fallback.
 Read-only list/info show the generated name and initial version before installation

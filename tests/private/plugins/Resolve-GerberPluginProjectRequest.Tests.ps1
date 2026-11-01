@@ -76,8 +76,33 @@ Describe 'Resolve-GerberPluginProjectRequest' -Tag 'PluginCreate' {
         ) {
             $script:inputMap.RepositoryUri = $Uri
             $request = Resolve-GerberPluginProjectRequest -InputMap $script:inputMap
-            $request.RepositoryUri | Should -BeExactly $Uri
+            $request.Repository.Uri | Should -BeExactly $Uri
+            $request.Repository.Name | Should -BeExactly $Uri
             $request.Destination | Should -Be (Join-Path $parent 'Gerber.Example')
+        }
+
+        It 'creates the canonical Gallery descriptor when repository input is absent' {
+            $request = Resolve-GerberPluginProjectRequest -InputMap $script:inputMap
+            $request.Repository.Name | Should -BeExactly 'PSGallery'
+            $request.Repository.Uri | Should -BeExactly 'https://www.powershellgallery.com/api/v2'
+            $request.PSObject.Properties.Name | Should -Not -Contain 'RepositoryUri'
+        }
+
+        It 'prefers canonical named metadata over a legacy URI without a conflict policy' {
+            $script:inputMap.Repository = @{ Name = 'ExampleFeed'; Uri = 'https://packages.example.org/feed' }
+            $script:inputMap.RepositoryUri = 'invalid-legacy'
+            $request = Resolve-GerberPluginProjectRequest -InputMap $script:inputMap
+            $request.Repository.Name | Should -BeExactly 'ExampleFeed'
+            $request.Repository.Uri | Should -BeExactly 'https://packages.example.org/feed'
+        }
+
+        It 'rejects an invalid explicit canonical declaration instead of choosing Gallery' -ForEach @(
+            @{ Repository = $null }, @{ Repository = 'ExampleFeed' }, @{ Repository = @{} }
+            @{ Repository = @{ Name = ''; Uri = 'https://example.org/feed' } }
+            @{ Repository = @{ Name = 'ExampleFeed'; Uri = 'relative-feed' } }
+        ) {
+            $script:inputMap.Repository = $Repository
+            { Resolve-GerberPluginProjectRequest -InputMap $script:inputMap } | Should -Throw
         }
 
         It 'rejects invalid explicit URI <Uri> rather than silently choosing PSGallery' -ForEach @(

@@ -16,7 +16,7 @@ function Get-GerberPluginProjectPromptFieldMap {
         Suffix = 'Module suffix (fixed Gerber. prefix)'
         Description = 'Description'
         Namespace = 'Command namespace'
-        RepositoryUri = 'Repository URI (Enter if unknown)'
+        Repository = 'Plugin repository'
         ParentPath = 'Destination parent'
     }
 }
@@ -38,7 +38,7 @@ function Get-GerberPluginProjectFieldLineList {
         Suffix = @('Plugin Name', 'Enter the name of your plugin. Gerber automatically adds the "Gerber." prefix.', 'Example: Gerber.MyCompany (enter MyCompany)')
         Description = @('Description', 'Briefly describe the purpose of your plugin.', 'Example: Local development tools')
         Namespace = @('Command Namespace', 'Commands provided by your plugin will be registered under this namespace.', 'Example: mycompany registers /mycompany hello')
-        RepositoryUri = @('Plugin Repository', 'Choose PSGallery (default), or another repository with a known URI.', 'For an unknown custom URI, press Enter to record REPLACE_WITH_REPOSITORY_URI; replace it before remote publishing or updates.')
+        Repository = @('Plugin Repository', 'Choose PSGallery (default), or name another repository and enter its URI.', 'For an unknown custom URI, press Enter to record REPLACE_WITH_REPOSITORY_URI; replace Repository.Uri before remote publishing or updates.')
         ParentPath = @('Destination', 'Select the parent directory for your project. Press Enter to use the current working directory.', "Default: $((Get-Location).ProviderPath)", "Project directory: $(Join-Path (Get-Location).ProviderPath "Gerber.$Suffix")")
     }
     $lines = $guidance[$Field]
@@ -48,24 +48,24 @@ function Get-GerberPluginProjectFieldLineList {
 function Read-GerberPluginProjectField {
     param([string]$Field, [string]$Prompt)
 
-    if ($Field -eq 'RepositoryUri') {
-        return Read-GerberPluginProjectRepositoryInput -Prompt $Prompt
+    if ($Field -eq 'Repository') {
+        return Read-GerberPluginProjectRepositoryInput
     }
     return Read-GerberPluginProjectTextField -Field $Field -Prompt $Prompt
 }
 
 function Read-GerberPluginProjectRepositoryInput {
-    param([string]$Prompt)
-
     $items = @(
-        Get-GerberPluginProjectRepositoryMenuItem -Number 1 -Value PSGallery -Label 'PSGallery (default)' -PreviewText 'Omit RepositoryUri; updates use official PSGallery.'
-        Get-GerberPluginProjectRepositoryMenuItem -Number 2 -Value Other -Label 'Another repository' -PreviewText 'Enter a known URI, or Enter for an explicit replacement placeholder.'
+        Get-GerberPluginProjectRepositoryMenuItem -Number 1 -Value PSGallery -Label 'PSGallery (default)' -PreviewText 'Record PSGallery and its official URI.'
+        Get-GerberPluginProjectRepositoryMenuItem -Number 2 -Value Other -Label 'Another repository' -PreviewText 'Enter a name, then a URI or an explicit replacement placeholder.'
     )
     $choice = Read-GerberNumberedMenuPrompt -Prompt 'Plugin repository' -MenuItemList $items
     if ($choice -eq 'PSGallery') {
-        return $null
+        return @{ Name = 'PSGallery'; Uri = 'https://www.powershellgallery.com/api/v2' }
     }
-    return Read-GerberPluginProjectTextField -Field RepositoryUri -Prompt $Prompt
+    $name = Read-GerberPluginProjectTextField -Field RepositoryName -Prompt 'Repository name'
+    $uri = Read-GerberPluginProjectTextField -Field RepositoryUri -Prompt 'Repository URI (Enter if unknown)'
+    return @{ Name = $name; Uri = $uri }
 }
 
 function Get-GerberPluginProjectRepositoryMenuItem {

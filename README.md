@@ -158,8 +158,13 @@ Examples inside the palette:
 `/update` opens the shared submenu with **list** and **policy**, like `/secrets`.
 `/update list` shows installed/available versions, repository and status for Core
 and installed, associated, approved, enabled plugins. Core always uses PSGallery.
-Plugins use their own manifest's `PrivateData.Gerber.RepositoryUri`, defaulting
-to the official Gallery only when absent; an invalid declaration never falls back.
+Plugins use their installed manifest's `PrivateData.Gerber.Repository = { Name, Uri }`:
+the table shows `Name`, while PMU receives the canonical `Uri`. The name remains
+visible when lookup is unavailable or finds no matching package. Absent repository
+metadata defaults to PSGallery and its official endpoint; invalid explicit metadata
+never falls back. Legacy `RepositoryUri` remains supported: the official Gallery
+URL shows PSGallery, while custom URLs keep their raw display until a name is added.
+The canonical object takes precedence when both keys exist.
 When plugin rows exist, use arrow keys and Space to select available updates,
 then Enter to review. A required Core update is visibly added before the combined
 confirmation. Trust/license-gated package inspection needs separate consent for
@@ -287,10 +292,10 @@ Gerber includes a plugin administration surface under `/plugins`:
 - `/plugins enable` approves and enables an installed inactive plugin (including declined ones) and loads its commands immediately
 - `/plugins disable` disables an active plugin, keeps its approval, and removes its commands immediately; it never uninstalls the module
 - `/plugins create` asks for a module suffix (fixed `Gerber.` prefix), description, collision-free command namespace, repository and destination parent (current directory by default), then generates and validates a working Plugin API v1 Nova project
-- PSGallery is the default repository and omits `Manifest.PrivateData.Gerber.RepositoryUri`. Choose another repository to enter its URL, or press Enter if unknown to write `REPLACE_WITH_REPOSITORY_URI`; replace that placeholder in `project.json` and rebuild before remote publishing or updates. Local build, tests and local publication still work. Invalid metadata never falls back to PSGallery
+- PSGallery is preselected and generates an explicit `Manifest.PrivateData.Gerber.Repository` object with `Name: PSGallery` and `Uri: https://www.powershellgallery.com/api/v2`, without extra questions. Another repository asks for its name, then URL. Blank names can be corrected locally; Enter for an unknown URL records `REPLACE_WITH_REPOSITORY_URI` in `Repository.Uri`. Replace it in `project.json` and rebuild before remote publishing or updates. Local build, tests and local publication still work. Invalid metadata never falls back to PSGallery
 - successful creation approves, associates and enables the new manifest GUID without installing/loading the module; run `Publish-NovaModule -Local` from the generated project, restart Gerber and try its `/mycompany hello` example
 - creation never overwrites a destination; invalid input can be corrected and `Esc` cancels without approval. The creation handler retains a Nova availability check and consent-based installation fallback; that on-demand safeguard does not make Nova optional in `RequiredModules`
-- explained, separated creation fields show the actual cwd and project-child defaults; completion shows name/version/namespace/location and explicitly says Installed: No
+- explained, separated creation fields show the actual cwd and project-child defaults; completion shows name/version/namespace/location, repository name and URI, and explicitly says Installed: No
 - generated projects include a complete Unreleased changelog and agent-first development resources, with AGENTS.md as the canonical self-contained guide and thin Claude/Copilot bridges
 - selecting a plugin to enable is explicit approval; there is no additional approval prompt
 - enable and disable decisions persist across sessions, and menus, completion, and dispatch update without restarting Gerber

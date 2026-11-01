@@ -37,13 +37,19 @@ function Complete-GerberPluginUpdateDiscovery {
     param([object]$Item)
     $module = Read-GerberPluginUpdateModule $Item.Plugin
     $manifest = Read-GerberPluginUpdateManifest $Item.Plugin
-    $uri = Resolve-GerberPluginRepositoryUri $manifest.PrivateData
+    $repository = Resolve-GerberPluginRepository $manifest.PrivateData
+    $Item.State.Repository = $repository.Name
+    $uri = ConvertTo-GerberPluginRepositoryUri -Value $repository.Uri
     $policy = Resolve-GerberPluginUpdatePolicy $module $uri
-    $Item.State.Repository = $uri.AbsoluteUri
     $Item.State.Channel = $policy.Channel
-    $plan = Get-PSModuleUpdate -Module (Resolve-GerberPluginUpdateActiveModule $module) -RepositoryUri $uri -Policy $policy -Credential $Item.Credential `
-        -ErrorAction Stop -WarningAction SilentlyContinue -InformationAction SilentlyContinue -Verbose:$false -Debug:$false
+    $plan = Get-GerberPluginUpdatePlan -Item $Item -Module $module -Policy $policy
     Complete-GerberPluginUpdateOverview $Item.State $plan
+}
+
+function Get-GerberPluginUpdatePlan {
+    param([object]$Item, [object]$Module, [hashtable]$Policy)
+    Get-PSModuleUpdate -Module (Resolve-GerberPluginUpdateActiveModule $Module) -RepositoryUri $Policy.ExpectedRepositoryUri -Policy $Policy -Credential $Item.Credential `
+        -ErrorAction Stop -WarningAction SilentlyContinue -InformationAction SilentlyContinue -Verbose:$false -Debug:$false
 }
 
 function Resolve-GerberPluginUpdateActiveModule {
@@ -82,11 +88,41 @@ function Read-GerberPluginUpdateManifest {
 
 function Resolve-GerberPluginRepositoryUri {
     param([object]$PrivateData)
+    $repository = Resolve-GerberPluginRepository $PrivateData
+    ConvertTo-GerberPluginRepositoryUri -Value $repository.Uri
+}
+
+function Resolve-GerberPluginRepository {
+    param([object]$PrivateData)
     $metadata = Read-GerberPluginUpdateMetadataRecord $PrivateData
-    if (-not $metadata.Contains('RepositoryUri')) {
-        return [uri]'https://www.powershellgallery.com/api/v2'
+    if ($metadata.Contains('Repository')) {
+        return Read-GerberPluginRepositoryDescriptor $metadata.Repository
     }
-    ConvertTo-GerberPluginRepositoryUri -Value $metadata.RepositoryUri
+    if (-not $metadata.Contains('RepositoryUri')) {
+        return [pscustomobject]@{ Name = 'PSGallery'; Uri = 'https://www.powershellgallery.com/api/v2' }
+    }
+    Resolve-GerberPluginLegacyRepository $metadata.RepositoryUri
+}
+
+function Resolve-GerberPluginLegacyRepository {
+    param([object]$Value)
+    $uri = ConvertTo-GerberPluginRepositoryUri -Value $Value
+    $name = $uri.AbsoluteUri
+    if ($name.TrimEnd('/') -ieq 'https://www.powershellgallery.com/api/v2') {
+        $name = 'PSGallery'
+    }
+    [pscustomobject]@{ Name = $name; Uri = $uri.AbsoluteUri }
+}
+
+function Read-GerberPluginRepositoryDescriptor {
+    param([object]$Repository)
+    if ($Repository -isnot [System.Collections.IDictionary]) {
+        throw [System.InvalidOperationException]::new('The declared plugin repository must contain Name and Uri.')
+    }
+    if ($Repository.Name -isnot [string] -or [string]::IsNullOrWhiteSpace($Repository.Name)) {
+        throw [System.InvalidOperationException]::new('The declared plugin repository name is invalid.')
+    }
+    [pscustomobject]@{ Name = $Repository.Name; Uri = $Repository.Uri }
 }
 
 function Read-GerberPluginUpdateMetadataRecord {

@@ -7,8 +7,17 @@ function Assert-GerberPluginProjectInput {
         ParentPath = 'Assert-GerberPluginProjectParent'
         Description = 'Assert-GerberPluginProjectDescription'
         RepositoryUri = 'Assert-GerberPluginProjectRepositoryInput'
+        RepositoryName = 'Assert-GerberPluginProjectRepositoryName'
     }
     & $validator[$Field] -Value $Value
+}
+
+function Assert-GerberPluginProjectRepositoryName {
+    param([AllowEmptyString()][string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        throw [System.ArgumentException]::new('Enter a repository name. Esc cancels without generating a plugin.')
+    }
 }
 
 function Assert-GerberPluginProjectDescription {

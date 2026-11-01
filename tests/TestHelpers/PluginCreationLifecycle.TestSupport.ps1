@@ -8,7 +8,7 @@ function Get-TestPluginCreationInputMap {
         ParentPath = $Parent
     }
     if ($RepositoryUri) {
-        $inputMap.RepositoryUri = $RepositoryUri
+        $inputMap.Repository = @{ Name = 'ExampleFeed'; Uri = $RepositoryUri }
     }
     return $inputMap
 }
@@ -104,10 +104,13 @@ function Assert-TestCreatedPluginManifest {
     $manifest = Import-PowerShellDataFile -LiteralPath $manifestPath -ErrorAction Stop
     $manifest.GUID.ToString() | Should -Be $Created.Guid
     $manifest.PrivateData.Gerber.Keys | Should -Not -Contain 'Guid'
+    $manifest.PrivateData.Gerber.Keys | Should -Not -Contain 'RepositoryUri'
     if ($RepositoryUri) {
-        $manifest.PrivateData.Gerber.RepositoryUri | Should -BeExactly $RepositoryUri
+        $manifest.PrivateData.Gerber.Repository.Name | Should -BeExactly 'ExampleFeed'
+        $manifest.PrivateData.Gerber.Repository.Uri | Should -BeExactly $RepositoryUri
     } else {
-        $manifest.PrivateData.Gerber.Keys | Should -Not -Contain 'RepositoryUri'
+        $manifest.PrivateData.Gerber.Repository.Name | Should -BeExactly 'PSGallery'
+        $manifest.PrivateData.Gerber.Repository.Uri | Should -BeExactly 'https://www.powershellgallery.com/api/v2'
     }
     $manifest.PrivateData.Gerber.Keys | Should -Not -Contain 'Update'
 }

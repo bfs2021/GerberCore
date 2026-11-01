@@ -5,20 +5,46 @@ function Resolve-GerberPluginProjectRequest {
     foreach ($field in @('Suffix', 'Description', 'Namespace', 'ParentPath')) {
         Assert-GerberPluginProjectInput -Field $field -Value $inputMap[$field]
     }
-    if ($inputMap.ContainsKey('RepositoryUri')) {
-        Assert-GerberPluginProjectInput -Field RepositoryUri -Value $inputMap.RepositoryUri
-    }
+    $repository = Resolve-GerberPluginProjectRepositoryInput -InputMap $inputMap
     $request = ConvertTo-GerberPluginProjectRequest -InputMap $inputMap
-    if ($inputMap.ContainsKey('RepositoryUri')) {
-        $request | Add-Member -NotePropertyName RepositoryUri -NotePropertyValue $inputMap.RepositoryUri
-    }
+    $request | Add-Member -NotePropertyName Repository -NotePropertyValue $repository
     return $request
+}
+
+function Resolve-GerberPluginProjectRepositoryInput {
+    param([hashtable]$InputMap)
+
+    if ($InputMap.ContainsKey('Repository')) {
+        return ConvertTo-GerberPluginProjectRepositoryInput $InputMap.Repository
+    }
+    if ($InputMap.ContainsKey('RepositoryUri')) {
+        Assert-GerberPluginProjectInput -Field RepositoryUri -Value $InputMap.RepositoryUri
+        $name = $InputMap.RepositoryUri
+        if ($name -eq 'https://www.powershellgallery.com/api/v2') {
+            $name = 'PSGallery'
+        }
+        return ConvertTo-GerberPluginProjectRepositoryInput @{ Name = $name; Uri = $InputMap.RepositoryUri }
+    }
+    return @{ Name = 'PSGallery'; Uri = 'https://www.powershellgallery.com/api/v2' }
+}
+
+function ConvertTo-GerberPluginProjectRepositoryInput {
+    param([object]$Repository)
+
+    $name = Get-GerberModulePrivateDataValueOrNull $Repository 'Name'
+    $uri = Get-GerberModulePrivateDataValueOrNull $Repository 'Uri'
+    if ($name -isnot [string]) {
+        throw [System.ArgumentException]::new('Enter a repository name and URI in Repository.Name and Repository.Uri.')
+    }
+    Assert-GerberPluginProjectInput -Field RepositoryName -Value $name
+    Assert-GerberPluginProjectInput -Field RepositoryUri -Value $uri
+    return @{ Name = $name; Uri = $uri }
 }
 
 function Initialize-GerberPluginProjectInputMap {
     param([hashtable]$InputMap)
 
-    # Required fields: Suffix, Description, Namespace; optional ParentPath and RepositoryUri.
+    # Required fields: Suffix, Description, Namespace; optional ParentPath and Repository.
     $values = $InputMap.Clone()
     if (-not $values.ContainsKey('ParentPath')) {
         $values.ParentPath = (Get-Location).ProviderPath

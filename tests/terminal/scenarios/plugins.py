@@ -24,6 +24,7 @@ PLUGIN_SECRET = "terminal-plugin-secret"
 PLUGIN_GUID = "7dd21b37-e080-4240-b05f-ec727389035e"
 PLUGIN_CREATION_INPUT_BATCH_SIZE = 64
 PLUGIN_REPOSITORY_URI = "https://packages.example.org/feed"
+PLUGIN_REPOSITORY_NAME = "ExampleFeed"
 PLUGIN_REPOSITORY_PLACEHOLDER = "REPLACE_WITH_REPOSITORY_URI"
 
 
@@ -89,8 +90,13 @@ def plugin_create_workflow(context) -> None:
     _accept_plugin_gallery_repository(context)
     _finish_plugin_creation(context)
     project = _assert_created_plugin_lifecycle(context)
-    assert "RepositoryUri" not in project["Manifest"]["PrivateData"]["Gerber"]
-    context.app.wait_for_text("Repository: PSGallery (RepositoryUri omitted)")
+    metadata = project["Manifest"]["PrivateData"]["Gerber"]
+    assert "RepositoryUri" not in metadata
+    assert metadata["Repository"] == {
+        "Name": "PSGallery", "Uri": "https://www.powershellgallery.com/api/v2",
+    }
+    context.app.wait_for_text("Repository: PSGallery")
+    context.app.wait_for_text("https://www.powershellgallery.com/api/v2")
     _assert_plugin_repository_choice_trace(context, "PSGallery")
     _assert_plugin_creation_trace(context)
     _inspect_created_plugin_from_parent(context)
@@ -173,11 +179,20 @@ def _begin_plugin_creation_to_repository(context) -> None:
     context.app.wait_for_text("Plugin repository:")
 
 
-def _select_custom_plugin_repository(context) -> None:
+def _choose_custom_plugin_repository(context) -> None:
     context.app.expect_selected_suggestion_highlighted("1. PSGallery (default)")
     context.app.press("DOWN")
     context.app.expect_selected_suggestion_highlighted("2. Another repository")
     context.app.press("ENTER")
+    context.app.wait_for_text("Repository name")
+
+
+def _select_custom_plugin_repository(context, invalid_name: bool = False) -> None:
+    _choose_custom_plugin_repository(context)
+    if invalid_name:
+        _submit_plugin_creation_field(context, "Repository name", "")
+        context.app.wait_for_text("Enter a repository name")
+    _submit_plugin_creation_field(context, "Repository name", PLUGIN_REPOSITORY_NAME)
     context.app.wait_for_text("Repository URI")
 
 
@@ -194,10 +209,10 @@ def _assert_plugin_repository_choice_trace(context, value: str) -> None:
         chosen = events.index(event, chosen + 1)
 
 
-def _create_plugin_with_custom_repository(context, uri: str, invalid_uri: str = "") -> None:
+def _create_plugin_with_custom_repository(context, uri: str, invalid_uri: str = "", invalid_name: bool = False) -> None:
     _start_plugin_creation_session(context)
     _begin_plugin_creation_to_repository(context)
-    _select_custom_plugin_repository(context)
+    _select_custom_plugin_repository(context, invalid_name)
     if invalid_uri:
         _submit_plugin_creation_field(context, "Repository URI", invalid_uri)
         context.app.wait_for_text("Enter an absolute repository URI")
@@ -206,6 +221,8 @@ def _create_plugin_with_custom_repository(context, uri: str, invalid_uri: str = 
     _assert_custom_plugin_repository(context, uri or PLUGIN_REPOSITORY_PLACEHOLDER)
     if invalid_uri:
         _assert_plugin_repository_recovery_trace(context)
+    if invalid_name:
+        _assert_plugin_repository_recovery_trace(context, "RepositoryName")
     context.app.press("ENTER")
     _expect_plugins_parent_menu(context)
 
@@ -213,22 +230,24 @@ def _create_plugin_with_custom_repository(context, uri: str, invalid_uri: str = 
 def _assert_custom_plugin_repository(context, uri: str) -> None:
     project = _assert_created_plugin_lifecycle(context)
     metadata = project["Manifest"]["PrivateData"]["Gerber"]
-    assert metadata["RepositoryUri"] == uri
+    assert metadata["Repository"] == {"Name": PLUGIN_REPOSITORY_NAME, "Uri": uri}
+    assert "RepositoryUri" not in metadata
     assert "Update" not in metadata
-    context.app.wait_for_text(f"Repository: {uri}")
+    context.app.wait_for_text(f"Repository: {PLUGIN_REPOSITORY_NAME}")
+    context.app.wait_for_text(uri)
     if uri == PLUGIN_REPOSITORY_PLACEHOLDER:
-        context.app.wait_for_text("Replace Manifest.PrivateData.Gerber.RepositoryUri")
+        context.app.wait_for_text("Replace Manifest.PrivateData.Gerber.Repository.Uri")
         context.app.wait_for_text("before remote publishing or updates.")
     _assert_plugin_repository_choice_trace(context, "Other")
 
 
-def _assert_plugin_repository_recovery_trace(context) -> None:
+def _assert_plugin_repository_recovery_trace(context, field: str = "RepositoryUri") -> None:
     records = [json.loads(line) for line in context.app.prompt_trace_text().splitlines()]
     rejected = [record for record in records
                 if record["Event"] == "plugin-create-input-rejected"
-                and record["Data"].get("Field") == "RepositoryUri"]
+                and record["Data"].get("Field") == field]
     assert len(rejected) == 1
-    assert rejected[0]["Data"] == {"Field": "RepositoryUri"}
+    assert rejected[0]["Data"] == {"Field": field}
     events = [record["Event"] for record in records]
     assert records.index(rejected[0]) < events.index("plugin-create-validation-started")
 
@@ -275,13 +294,30 @@ def plugin_create_repository_recovery(context) -> None:
     _create_plugin_with_custom_repository(context, PLUGIN_REPOSITORY_URI, "https://example.org/feed?invalid=1")
 
 
-def _cancel_plugin_creation_at_repository(context, custom: bool) -> None:
+@scenario(
+    "plugin-create-repository-name-recovery",
+    title="Plugin create blank custom name recovers locally before its URI",
+    categories=("core", "plugin-create", "plugins", "recovery", "navigation"),
+    metadata=ScenarioMetadata(
+        commands=("plugins", "plugins create"),
+        workflows=("command:plugins create",),
+        coverage=("dispatch", "workflow", "navigation", "rendering", "error-recovery"),
+    ),
+)
+def plugin_create_repository_name_recovery(context) -> None:
+    _create_plugin_with_custom_repository(context, PLUGIN_REPOSITORY_URI, invalid_name=True)
+
+
+def _cancel_plugin_creation_at_repository(context, custom: bool, name_only: bool = False) -> None:
     _start_plugin_creation_session(context)
     config_path = context.app.runtime_paths.scenario_root / "config.json"
     before = config_path.read_text()
     _begin_plugin_creation_to_repository(context)
     if custom:
-        _select_custom_plugin_repository(context)
+        if name_only:
+            _choose_custom_plugin_repository(context)
+        else:
+            _select_custom_plugin_repository(context)
     context.app.press("ESCAPE")
     _expect_plugins_parent_menu(context)
     assert config_path.read_text() == before
@@ -323,6 +359,20 @@ def plugin_create_repository_cancel(context) -> None:
 )
 def plugin_create_repository_uri_cancel(context) -> None:
     _cancel_plugin_creation_at_repository(context, True)
+
+
+@scenario(
+    "plugin-create-repository-name-cancel",
+    title="Plugin create custom name Escape preserves configuration and files",
+    categories=("core", "plugin-create", "plugins", "navigation"),
+    metadata=ScenarioMetadata(
+        commands=("plugins", "plugins create"),
+        workflows=("command:plugins create",),
+        coverage=("dispatch", "workflow", "navigation", "rendering"),
+    ),
+)
+def plugin_create_repository_name_cancel(context) -> None:
+    _cancel_plugin_creation_at_repository(context, True, name_only=True)
 
 
 def approve_synthetic_plugin(context) -> None:

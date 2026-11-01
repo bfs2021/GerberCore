@@ -28,6 +28,8 @@ Describe 'New-GerberPluginProject' -Tag 'PluginCreate' {
         $project.Manifest.PrivateData.Gerber.ApiVersion | Should -Be '1'
         $result.Name | Should -Be 'Gerber.Example'
         $result.Version | Should -Be $project.Version
+        $result.Repository.Name | Should -BeExactly 'PSGallery'
+        $result.Repository.Uri | Should -BeExactly 'https://www.powershellgallery.com/api/v2'
         Test-Path (Join-Path $result.Path 'src/public/Get-GerberPlugin.ps1') | Should -BeTrue
         Test-Path (Join-Path $result.Path 'tests/public/Get-GerberPlugin.Integration.Tests.ps1') | Should -BeTrue
         Should -Invoke Resolve-GerberPluginApproval -Times 1 -ParameterFilter {
@@ -97,7 +99,7 @@ Describe 'New-GerberPluginProject' -Tag 'PluginCreate' {
         @{ Label = 'known URI'; Uri = 'https://packages.example.org/feed' }
         @{ Label = 'explicit placeholder'; Uri = 'REPLACE_WITH_REPOSITORY_URI' }
     ) {
-        $request | Add-Member RepositoryUri $Uri
+        $request | Add-Member Repository (@{ Name = 'ExampleFeed'; Uri = $Uri })
         Mock Test-GerberPluginProject {
         }
         Mock Resolve-GerberPluginApproval {
@@ -105,8 +107,10 @@ Describe 'New-GerberPluginProject' -Tag 'PluginCreate' {
         }
         $result = New-GerberPluginProject -Request $request
         $metadata = (Get-Content (Join-Path $result.Path 'project.json') -Raw | ConvertFrom-Json -AsHashtable).Manifest.PrivateData.Gerber
-        $metadata.RepositoryUri | Should -BeExactly $Uri
-        $result.RepositoryUri | Should -BeExactly $Uri
+        $metadata.Repository.Name | Should -BeExactly 'ExampleFeed'
+        $metadata.Repository.Uri | Should -BeExactly $Uri
+        $result.Repository.Name | Should -BeExactly 'ExampleFeed'
+        $result.Repository.Uri | Should -BeExactly $Uri
         Should -Invoke Resolve-GerberPluginApproval -Times 1 -ParameterFilter {
             $ExplicitApproval -and $PluginModule.Guid -eq $result.Guid
         }

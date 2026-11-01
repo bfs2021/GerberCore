@@ -47,9 +47,7 @@ function Get-GerberPluginProjectCreationResult {
         Path = $Request.Destination
         Guid = $Guid
         Namespace = $Request.Namespace
-    }
-    if ($Request.PSObject.Properties['RepositoryUri']) {
-        $result | Add-Member -NotePropertyName RepositoryUri -NotePropertyValue $Request.RepositoryUri
+        Repository = $Request.Repository
     }
     return $result
 }

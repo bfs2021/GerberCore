@@ -3,6 +3,16 @@ BeforeAll {
     . (Join-Path $PSScriptRoot '../../TestHelpers/PluginUpdate.TestSupport.ps1')
     . (Join-Path $PSScriptRoot '../../TestHelpers/UpdateActivation.TestSupport.ps1')
     . (Join-Path $PSScriptRoot '../../../src/private/shared/ConvertTo-GerberPluginRepositoryUri.ps1')
+
+    function Initialize-TestNamedPluginRepository {
+        param([string]$Uri = 'https://packages.example.org/v3/index.json')
+
+        $path = $script:entry.ModulePath
+        $manifest = Get-Content -LiteralPath $path -Raw
+        $declaration = "Repository = @{ Name = 'ExampleFeed'; Uri = '$Uri' }; RepositoryUri = 'invalid-legacy'"
+        $manifest = $manifest.Replace("RepositoryUri = 'https://packages.example.org/v3/index.json'", $declaration)
+        Set-Content -LiteralPath $path -Value $manifest
+    }
 }
 
 Describe 'Resolve-GerberPluginUpdateState' -Tag 'G4A9' {
@@ -130,6 +140,46 @@ Describe 'Resolve-GerberPluginUpdateState' -Tag 'G4A9' {
             $item.State.Status | Should -Be 'Unavailable'
             Should -Invoke Get-PSModuleUpdate -Times 0
         }
+
+        It 'shows the canonical name while forwarding its URI and ignoring invalid legacy metadata' -Tag 'PluginCreateRepository' {
+            Initialize-TestNamedPluginRepository
+            $item = Resolve-GerberPluginUpdateState $script:entry
+            $item.State.Repository | Should -BeExactly 'ExampleFeed'
+            $item.State.Status | Should -Be 'Available'
+            Should -Invoke Get-PSModuleUpdate -Times 1 -ParameterFilter {
+                $RepositoryUri.AbsoluteUri -eq 'https://packages.example.org/v3/index.json' -and
+                $Policy.ExpectedRepositoryUri.AbsoluteUri -eq $RepositoryUri.AbsoluteUri
+            }
+        }
+
+        It 'reads the current named descriptor rather than cached PrivateData' -Tag 'PluginCreateRepository' {
+            Initialize-TestNamedPluginRepository
+            Mock Get-Module { $script:older } -ParameterFilter { $ListAvailable }
+            (Resolve-GerberPluginUpdateState $script:entry).State.Repository | Should -BeExactly 'ExampleFeed'
+        }
+
+        It 'preserves the canonical name on <Status> lookup failure' -Tag 'PluginCreateRepository' -ForEach @(
+            @{ ErrorId = 'PMU.PackageNotFound'; Status = 'NoMatchingPackage' }
+            @{ ErrorId = 'PMU.AuthenticationFailed'; Status = 'CredentialRequired' }
+            @{ ErrorId = 'PMU.DiscoveryFailed'; Status = 'Unavailable' }
+        ) {
+            Initialize-TestNamedPluginRepository
+            $script:lookupError = $ErrorId
+            Mock Get-PSModuleUpdate { Write-Error 'fixture lookup failed' -ErrorId $script:lookupError -ErrorAction Stop }
+            $item = Resolve-GerberPluginUpdateState $script:entry
+            $item.State.Repository | Should -BeExactly 'ExampleFeed'
+            $item.State.Status | Should -Be $Status
+            $item.State.Plan | Should -BeNullOrEmpty
+            Should -Invoke Get-PSModuleUpdate -Times 1
+        }
+
+        It 'retains a declared name but never falls back after an invalid canonical URI' -Tag 'PluginCreateRepository' {
+            Initialize-TestNamedPluginRepository -Uri 'REPLACE_WITH_REPOSITORY_URI'
+            $item = Resolve-GerberPluginUpdateState $script:entry
+            $item.State.Repository | Should -BeExactly 'ExampleFeed'
+            $item.State.Status | Should -Be 'Unavailable'
+            Should -Invoke Get-PSModuleUpdate -Times 0
+        }
     }
 
     Context 'plugin-author repository metadata' -Tag 'PluginCreateUriCharacterization' {
@@ -164,6 +214,24 @@ Describe 'Resolve-GerberPluginUpdateState' -Tag 'G4A9' {
                     }
                 }
             } | Should -Throw
+        }
+
+        It 'maps a legacy official Gallery URL to PSGallery but retains a custom legacy URI display' -Tag 'PluginCreateRepository' -ForEach @(
+            @{ Uri = 'https://www.powershellgallery.com/api/v2'; Name = 'PSGallery' }
+            @{ Uri = 'https://packages.example.org/feed'; Name = 'https://packages.example.org/feed' }
+        ) {
+            $repository = Resolve-GerberPluginRepository @{ Gerber = @{ RepositoryUri = $Uri } }
+            $repository.Name | Should -BeExactly $Name
+            $repository.Uri | Should -BeExactly $Uri
+        }
+
+        It 'rejects malformed canonical declarations without Gallery fallback' -Tag 'PluginCreateRepository' -ForEach @(
+            @{ Repository = $null }, @{ Repository = 'PSGallery' }, @{ Repository = @{} }
+            @{ Repository = @{ Name = ''; Uri = 'https://example.org/feed' } }
+            @{ Repository = @{ Name = 42; Uri = 'https://example.org/feed' } }
+            @{ Repository = @{ Name = 'ExampleFeed'; Uri = 'relative-feed' } }
+        ) {
+            { Resolve-GerberPluginRepositoryUri @{ Gerber = @{ Repository = $Repository } } } | Should -Throw
         }
     }
 }
