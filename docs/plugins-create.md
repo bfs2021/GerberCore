@@ -168,7 +168,7 @@ calls.
 
 **AGENTS.md** is the canonical agent-neutral guide: product/host boundaries,
 authored versus generated paths, permanent identity, lifecycle, concrete steps
-for adding/registering a handler and tests, the public UI/ADO/Secrets/Clipboard
+for adding/registering a handler and tests, the public Configuration/UI/Http/Secrets/Clipboard
 contract, Nova commands, coverage/analyzer/CodeScene expectations and docs.
 It is usable without access to private Core source.
 

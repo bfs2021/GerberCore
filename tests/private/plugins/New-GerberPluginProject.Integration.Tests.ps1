@@ -9,7 +9,7 @@ Describe 'New-GerberPluginProject isolated lifecycle integration' -Tag 'PluginCr
         $script:originalConfig = $env:GERBER_CONFIG_PATH
         $parent = Join-Path $TestDrive ([System.IO.Path]::GetRandomFileName())
         $null = New-Item -ItemType Directory -Path $parent
-        $env:GERBER_CONFIG_PATH = Join-Path $parent 'config.json'
+        $env:GERBER_CONFIG_PATH = Join-Path $parent 'GerberCore.json'
         Import-Module $script:coreManifest -Force
     }
 

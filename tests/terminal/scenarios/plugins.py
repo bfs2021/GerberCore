@@ -10,9 +10,7 @@ from framework.scenario_registry import ScenarioMetadata, scenario
 
 from .core import _press_double_escape
 from .core_mission_support import (
-    ADO_PAT,
     assert_no_secret_leak,
-    seed_ado_state,
     strict_http_fixture,
 )
 
@@ -103,7 +101,7 @@ def plugin_create_workflow(context) -> None:
 
 
 def _cancel_plugin_creation_at_suffix(context) -> None:
-    config_path = context.app.runtime_paths.scenario_root / "config.json"
+    config_path = context.app.runtime_paths.scenario_root / "GerberCore.json"
     before = config_path.read_text()
     _open_plugins_parent_menu(context)
     context.app.press("ENTER")
@@ -145,7 +143,7 @@ def _finish_plugin_creation(context) -> None:
 
 
 def _assert_created_plugin_lifecycle(context) -> dict:
-    config_path = context.app.runtime_paths.scenario_root / "config.json"
+    config_path = context.app.runtime_paths.scenario_root / "GerberCore.json"
     project_path = context.app.runtime_paths.scenario_root / "Gerber.MyCompany"
     project = json.loads((project_path / "project.json").read_text())
     guid = project["Manifest"]["GUID"]
@@ -310,7 +308,7 @@ def plugin_create_repository_name_recovery(context) -> None:
 
 def _cancel_plugin_creation_at_repository(context, custom: bool, name_only: bool = False) -> None:
     _start_plugin_creation_session(context)
-    config_path = context.app.runtime_paths.scenario_root / "config.json"
+    config_path = context.app.runtime_paths.scenario_root / "GerberCore.json"
     before = config_path.read_text()
     _begin_plugin_creation_to_repository(context)
     if custom:
@@ -380,6 +378,7 @@ def approve_synthetic_plugin(context) -> None:
     context.app.wait_for_text(PLUGIN_GUID)
     context.app.expect_selected_suggestion("1. Decline")
     context.app.press("DOWN")
+    context.app.wait_for_text("  ❯ 2. Approve")
     context.app.expect_selected_suggestion("2. Approve")
     context.app.press("ENTER")
     context.app.wait_for_prompt()
@@ -453,7 +452,6 @@ def _return_to_root_from_plugins_parent(context) -> None:
         commands=(
             "repository empty-text",
             "repository explode",
-            "repository fixture-ado",
             "repository fixture-api",
             "repository fixture-status",
         ),
@@ -465,10 +463,9 @@ def synthetic_plugin_discovery(context) -> None:
     context.app.start(enable_synthetic_plugin=True)
     approve_synthetic_plugin(context)
     context.app.type("/repository")
-    context.app.expect_suggestion("/repository create")
+    context.app.expect_text_absent("/repository create")
     context.app.expect_suggestion("/repository empty-text")
     context.app.expect_suggestion("/repository explode")
-    context.app.expect_suggestion("/repository fixture-ado")
     context.app.expect_suggestion("/repository fixture-api")
     context.app.expect_suggestion("/repository fixture-status")
     context.app.expect_text_absent("/synthetic")
@@ -539,7 +536,7 @@ def synthetic_plugin_empty_text_regression(context) -> None:
 @scenario(
     "synthetic-plugin-api-contract",
     title="Generic Plugin API shared capability contract",
-    categories=("plugin", "synthetic", "credentials", "clipboard"),
+    categories=("plugin", "synthetic", "credentials", "clipboard", "configuration"),
     metadata=ScenarioMetadata(
         commands=("repository fixture-api",),
         workflows=("command:repository fixture-api", "plugin-api:shared-capabilities"),
@@ -553,68 +550,16 @@ def synthetic_plugin_api_contract(context) -> None:
     context.app.type("/repository fixture-api")
     context.app.press("ENTER")
     context.app.wait_for_text("Synthetic Plugin API contract passed.")
+    configuration_path = context.app.runtime_paths.scenario_root / "Gerber.TerminalFixture.json"
+    assert json.loads(configuration_path.read_text(encoding="utf-8-sig")) == {
+        "fixture": "generic-json-contract"
+    }
     credential_state = context.app.credential_state()
     assert credential_state["credentials"] == {}, credential_state
     assert context.app.clipboard_state()["values"] == [
         {"value": "fixture-api-ok", "length": len("fixture-api-ok")}
     ]
     assert_no_secret_leak(context.app, PLUGIN_SECRET)
-
-
-@scenario(
-    "synthetic-plugin-ado-contract",
-    title="Generic Plugin API ADO contract",
-    categories=("plugin", "synthetic", "ado"),
-    metadata=ScenarioMetadata(
-        commands=("repository fixture-ado",),
-        workflows=("command:repository fixture-ado", "plugin-api:ado"),
-        coverage=("dispatch", "workflow", "navigation", "rendering"),
-    ),
-)
-def synthetic_plugin_ado_contract(context) -> None:
-    seed_ado_state(context)
-    fixture = strict_http_fixture(
-        [
-            {
-                "method": "Get",
-                "uri": "https://dev.azure.com/terminal/_apis/projects?api-version=7.0",
-                "response": {"value": [{"id": "terminal", "name": "TerminalProject"}]},
-            }
-        ]
-    )
-    context.app.start(enable_synthetic_plugin=True, http_fixture=fixture)
-    approve_synthetic_plugin(context)
-    context.app.type("/repository fixture-ado")
-    context.app.press("ENTER")
-    context.app.wait_for_text("Synthetic Plugin API ADO contract passed for TerminalProject.")
-    request_list = context.app.http_state()["requests"]
-    assert len(request_list) == 1, request_list
-    assert_no_secret_leak(context.app, ADO_PAT)
-
-
-@scenario(
-    "synthetic-plugin-ado-recovery",
-    title="Generic Plugin API ADO failure recovery",
-    categories=("plugin", "synthetic", "ado", "recovery"),
-    metadata=ScenarioMetadata(
-        commands=("repository fixture-ado",),
-        workflows=("command:repository fixture-ado", "plugin-api:ado-failure"),
-        coverage=("error-recovery",),
-    ),
-)
-def synthetic_plugin_ado_recovery(context) -> None:
-    seed_ado_state(context)
-    context.app.start(
-        enable_synthetic_plugin=True,
-        http_fixture=strict_http_fixture([]),
-    )
-    approve_synthetic_plugin(context)
-    context.app.type("/repository fixture-ado")
-    context.app.press("ENTER")
-    context.app.wait_for_text("Unexpected Gerber Core terminal HTTP request.")
-    context.app.press("ENTER")
-    context.app.wait_for_prompt()
-    assert_no_secret_leak(context.app, ADO_PAT)
 
 
 @scenario(

@@ -68,7 +68,7 @@ def _seed_batch_associations(root, plugins: dict) -> None:
             "associated": _batch_plugin_associations(plugins),
         },
     }
-    (root / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    (root / "GerberCore.json").write_text(json.dumps(config), encoding="utf-8")
 
 
 def _batch_plugin_associations(plugins: dict) -> dict:
@@ -356,7 +356,7 @@ def update_batch_cancellation_stops_future(context) -> None:
 
 def _seed_update(context, **options) -> None:
     root = context.app.runtime_paths.scenario_root
-    (root / "config.json").write_text(
+    (root / "GerberCore.json").write_text(
         json.dumps({"schemaVersion": 1}),
         encoding="utf-8",
     )
@@ -754,7 +754,7 @@ def update_policy_persistence_and_navigation(context) -> None:
     context.app.press("ENTER")
     context.app.wait_for_text("Core update policy saved: Include prereleases")
     context.app.wait_for_text("Nothing was installed")
-    config = context.app.runtime_paths.scenario_root / "config.json"
+    config = context.app.runtime_paths.scenario_root / "GerberCore.json"
     assert json.loads(config.read_text())["coreUpdates"]["channel"] == "IncludePrerelease"
     assert _update_state(context)["discoveryCount"] == before["discoveryCount"]
     _continue_to_update_menu(context)
@@ -809,7 +809,7 @@ def update_policy_save_error_recovers(context) -> None:
     context.app.wait_for_text("Gerber could not save the Core update policy")
     context.app.wait_for_text("write permissions")
     context.app.expect_text_absent("Core update policy saved:")
-    config = context.app.runtime_paths.scenario_root / "config.json"
+    config = context.app.runtime_paths.scenario_root / "GerberCore.json"
     assert "coreUpdates" not in json.loads(config.read_text())
     _continue_to_update_menu(context)
     _choose_policy(context)

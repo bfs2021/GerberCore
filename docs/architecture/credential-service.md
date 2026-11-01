@@ -35,11 +35,15 @@ Credential identifiers are stable, case-insensitive, and canonicalized to lowerc
 
 | Consumer | Identifier |
 | --- | --- |
-| Azure DevOps profile | `gerber:ado:<profile>:pat` |
+| Legacy Core Azure DevOps profile (retained, not reused) | `gerber:ado:<profile>:pat` |
+| Gerber.AzureDevOps profile | `gerber:plugin:a468dee5-c7a0-43e4-ae88-bb19158fe679:ado:<profile>:pat` |
 | Plugin credential | `gerber:plugin:<plugin-guid>:<path-segments>` |
 | General Gerber credential | `gerber:<scope>:<name>` |
 
-The Azure DevOps identifier is derived from the profile name and is not stored redundantly in `config.json`. Plugin identity continues to use the PowerShell module manifest GUID.
+AzureDevOps uses its existing GUID-scoped Secrets API with the logical path
+`@('ado', $ProfileName, 'pat')`. Identifiers are not stored redundantly in JSON.
+Old Core credentials are neither migrated, automatically read nor deleted.
+Plugin identity continues to use the module manifest GUID.
 
 The namespace prevents Gerber from listing or modifying unrelated application credentials. It is not a security sandbox: plugins execute as PowerShell code in the user's process and can call other process-accessible APIs.
 
@@ -55,13 +59,16 @@ Gerber explicitly selects CredentialManager's `secretservice` provider on Linux.
 
 ## Azure DevOps
 
-An Azure DevOps operation resolves the configured profile, derives its credential identifier, and retrieves the PAT only when authentication is required. Gerber now handles first-use readiness inline: if no suitable profile exists, it can guide the user through minimal named-profile setup; if the profile exists but the PAT is missing, it can prompt only for the PAT; and unrelated commands still avoid touching the credential store.
+Gerber.AzureDevOps owns profile resolution and lazy authenticated use through
+the public Secrets API. First-use setup is plugin-owned; import and unrelated
+Core commands do not request PATs. A missing plugin PAT is entered again only
+during interactive authenticated use; noninteractive calls fail without prompts.
 
 Profile metadata and PAT storage remain separate systems:
 
-- profile metadata stays in user configuration under `ado.defaultProfile` and `ado.profiles`
-- the PAT stays only in native credential storage under `gerber:ado:<profile>:pat`
-- there is no `AZURE_DEVOPS_PAT` fallback, plaintext storage, or PAT copy in `config.json`
+- profile metadata stays in `Gerber.AzureDevOps.json` under `ado.defaultProfile` and `ado.profiles`
+- the PAT stays only in GUID-scoped native credential storage through Secrets
+- there is no `AZURE_DEVOPS_PAT` fallback, plaintext storage or PAT copy in JSON
 
 Because those writes are separate, Gerber validates the inputs first, writes configuration before credential storage, and reports any partial failure explicitly so the user can retry safely without exposing the secret value.
 

@@ -36,6 +36,45 @@ Before opening a pull request:
 - keep PowerShell cmdlet guidance, CLI guidance, and contributor guidance clearly separated
 - validate the changed path before you ask for review
 
+## Local AzureDevOps extraction development
+
+Gerber.AzureDevOps owns ADO source, resources, domain tests and product PTY
+scenarios in its separate repository. Core owns platform tests and the generic
+Gerber.TerminalFixture contract. Neither repository's tests should load other
+product plugins.
+
+The Core manifest now requires Gerber.AzureDevOps 0.1.0. Until it is published,
+build the existing sibling plugin and expose only its artifact to the current
+validation process; do not install it globally:
+
+```powershell
+Push-Location ../Gerber.AzureDevOps
+Import-Module NovaModuleTools
+Invoke-NovaBuild
+Pop-Location
+$pluginModules = (Resolve-Path ../Gerber.AzureDevOps/dist).Path
+$env:PSModulePath = $pluginModules + [IO.Path]::PathSeparator + $env:PSModulePath
+$env:GERBER_RUN_NATIVE_CREDENTIAL_TESTS = '0'
+./run.ps1
+```
+
+Use fresh processes, isolated configuration and fake credentials for module
+boundary tests. Importing Core must load its declared dependency but must not
+approve, activate or register the plugin. Test saved decline/disable decisions
+and Core-only actions with the dependency already imported.
+Plugin JSON access is identity-bound; Core keeps location, serialization and
+atomic publication while each plugin owns structure/defaults. Keep migration
+conflict, partial-failure/retry and unknown-field assertions intact.
+Product PATs use the existing plugin GUID Secrets namespace; never touch a
+workstation vault or automatically reuse old Core credentials.
+
+For an explicitly increased PTY time budget, use the existing terminal wrapper's
+`-SuiteTimeoutSeconds 1800` option; do not skip scenarios or weaken coverage.
+Record local results separately from hosted qualification. A source artifact
+does not establish Gallery delivery; clean CI/repository installation remains
+unverified until the unpublished required plugin is available through the
+separately authorized distribution qualification.
+
 ## Update workflow verification
 
 The G-4A9 `/update list` tests use disposable PMU plans and results, target-manifest
@@ -77,7 +116,9 @@ Neither the workflow definition nor mocked/local tooling tests qualify a platfor
 The pinned lanes are Windows 2025/x64, Ubuntu 24.04/x64 and macOS 15/ARM64,
 using PowerShell >= 7.4. They install the existing CI module prerequisites and
 build with `Invoke-NovaBuild`. Runtime dependency requirements come from
-`project.json`: currently NovaModuleTools >= 3.4.2 and PSModuleUpdate >= 0.2.0.
+`project.json`: currently NovaModuleTools >= 3.4.2, PSModuleUpdate >= 0.2.0 and
+Gerber.AzureDevOps >= 0.1.0. The new plugin is locally built for this extraction;
+its unpublished Gallery dependency has not been qualified on a clean runner.
 The only selected tests are the two existing
 `NativeCredentialStore` scenarios in
 `tests/public/CredentialService.Integration.Tests.ps1`: Core and external Plugin

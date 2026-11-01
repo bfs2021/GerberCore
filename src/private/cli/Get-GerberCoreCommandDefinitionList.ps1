@@ -33,7 +33,7 @@ function Get-GerberCoreRootCommandDefinitionList {
             Name        = 'branch'
             Description = 'Search repositories by branch'
             Handler     = { param([pscustomobject]$Command) Show-GerberBranchView -Command $Command; return $false }
-            Subcommands = Get-GerberBranchCommandCatalog
+            Subcommands = [ordered]@{}
         }
         [pscustomobject][ordered]@{
             Name        = 'repository'
@@ -82,18 +82,6 @@ function Get-GerberCoreLeafCommandDefinitionList {
 
     return @(
         [pscustomobject][ordered]@{
-            Name        = 'list ado-agents'
-            Description = 'List Azure DevOps BUILD and DEPLOY agents'
-            Handler     = { param([pscustomobject]$Command) $null = $Command; Invoke-GerberListAdoAgentsCommand; return $false }
-            Subcommands = [ordered]@{}
-        }
-        [pscustomobject][ordered]@{
-            Name        = 'list ado-team-members'
-            Description = 'List Azure DevOps teams and members'
-            Handler     = { param([pscustomobject]$Command) $null = $Command; Invoke-GerberListAdoTeamMembersCommand; return $false }
-            Subcommands = [ordered]@{}
-        }
-        [pscustomobject][ordered]@{
             Name        = 'tools create-uuid'
             Description = 'Generate a UUID and copy it to the clipboard when possible'
             Handler     = { Show-GerberCreateUuidTool; return $false }
@@ -104,12 +92,6 @@ function Get-GerberCoreLeafCommandDefinitionList {
             Description = 'Open the Base64 text utility'
             Handler     = { param([pscustomobject]$Command) Show-GerberBase64Tool -Command $Command; return $false }
             Subcommands = Get-GerberBase64CommandCatalog
-        }
-        [pscustomobject][ordered]@{
-            Name        = 'repository create'
-            Description = 'Create a new repository from template'
-            Handler     = { param([pscustomobject]$Command) $null = $Command; Show-GerberRepositoryCreateView -Command $Command; return $false }
-            Subcommands = [ordered]@{}
         }
         [pscustomobject][ordered]@{
             Name        = 'plugins list'
@@ -136,12 +118,6 @@ function Get-GerberCoreLeafCommandDefinitionList {
             Subcommands = [ordered]@{}
         }
         Get-GerberCorePluginCreateCommandDefinition
-        [pscustomobject][ordered]@{
-            Name        = 'pipelines tags'
-            Description = 'Open the pipeline tag submenu'
-            Handler     = { param([pscustomobject]$Command) Show-GerberPipelinesTagsView -Command $Command; return $false }
-            Subcommands = Get-GerberPipelinesTagsCommandCatalog
-        }
         Get-GerberCoreUpdateLeafCommandDefinitionList
     )
 }

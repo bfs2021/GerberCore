@@ -72,9 +72,10 @@ Describe 'Write-GerberPluginProject' -Tag 'PluginCreate' {
 
         It 'provides canonical self-contained Gerber guidance and thin tool bridges' {
             $guide = Get-Content (Join-Path $TestDrive 'AGENTS.md') -Raw
-            foreach ($contract in @('Plugin API v1', 'Manifest.GUID', 'PrivateData.Gerber', 'src/public', 'src/private', 'dist/', 'docs/schema', 'Get-GerberPlugin', 'Get-PluginCommandDefinitionList', 'Get-PluginHelloHandler', '/example hello', 'UI.ReadSubcommand', 'Ado.OpenConnection', 'Secrets.GetText', 'Clipboard.CopyText', 'Invoke-NovaBuild', 'Invoke-NovaTest', 'Test-NovaBuild', 'Publish-NovaModule -Local', 'Update-NovaModuleVersion', 'PSScriptAnalyzer', 'CodeScene', '90%')) {
+            foreach ($contract in @('Plugin API v1', 'Manifest.GUID', 'PrivateData.Gerber', 'src/public', 'src/private', 'dist/', 'docs/schema', 'Get-GerberPlugin', 'Get-PluginCommandDefinitionList', 'Get-PluginHelloHandler', '/example hello', 'UI.ReadSubcommand', 'Configuration.Read', 'Configuration.Save', 'Secrets.GetText', 'Clipboard.CopyText', 'Invoke-NovaBuild', 'Invoke-NovaTest', 'Test-NovaBuild', 'Publish-NovaModule -Local', 'Update-NovaModuleVersion', 'PSScriptAnalyzer', 'CodeScene', '90%')) {
                 $guide | Should -Match ([regex]::Escape($contract))
             }
+            $guide | Should -Not -Match 'Ado\.OpenConnection'
             foreach ($bridge in @('CLAUDE.md', '.github/copilot-instructions.md')) {
                 $text = Get-Content (Join-Path $TestDrive $bridge) -Raw
                 $text | Should -Match 'AGENTS.md'

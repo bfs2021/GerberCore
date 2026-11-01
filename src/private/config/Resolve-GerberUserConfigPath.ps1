@@ -7,17 +7,18 @@ function Resolve-GerberUserConfigPath {
 
     $overridePath = Get-GerberUserConfigEnvironmentValue -Name 'GERBER_CONFIG_PATH'
     if ($null -ne $overridePath) {
-        return Resolve-GerberUserConfigAbsolutePath `
+        $resolvedPath = Resolve-GerberUserConfigAbsolutePath `
             -Path $overridePath `
             -EnvironmentVariableName 'GERBER_CONFIG_PATH' `
             -Description 'a full file path'
+        return ConvertTo-GerberCoreConfigPath -Path $resolvedPath -IsWindowsPlatform $IsWindowsPlatform
     }
 
     if ($IsWindowsPlatform) {
         $appDataPath = Get-GerberUserConfigRequiredEnvironmentValue `
             -Name 'APPDATA' `
             -Description 'the Windows roaming application data directory'
-        return [System.IO.Path]::GetFullPath((Join-Path $appDataPath 'Gerber/config.json'))
+        return [System.IO.Path]::GetFullPath((Join-Path $appDataPath 'Gerber/GerberCore.json'))
     }
 
     $xdgConfigHome = Get-GerberUserConfigEnvironmentValue -Name 'XDG_CONFIG_HOME'
@@ -26,13 +27,27 @@ function Resolve-GerberUserConfigPath {
             -Path $xdgConfigHome `
             -EnvironmentVariableName 'XDG_CONFIG_HOME' `
             -Description 'a directory path'
-        return [System.IO.Path]::GetFullPath((Join-Path $resolvedXdgConfigHome 'Gerber/config.json'))
+        return [System.IO.Path]::GetFullPath((Join-Path $resolvedXdgConfigHome 'Gerber/GerberCore.json'))
     }
 
     $homePath = Get-GerberUserConfigRequiredEnvironmentValue `
         -Name 'HOME' `
         -Description 'the user home directory'
-    return [System.IO.Path]::GetFullPath((Join-Path $homePath '.config/Gerber/config.json'))
+    return [System.IO.Path]::GetFullPath((Join-Path $homePath '.config/Gerber/GerberCore.json'))
+}
+
+function ConvertTo-GerberCoreConfigPath {
+    param([string]$Path, [bool]$IsWindowsPlatform)
+
+    $name = [System.IO.Path]::GetFileName($Path)
+    $comparison = [System.StringComparison]::Ordinal
+    if ($IsWindowsPlatform) {
+        $comparison = [System.StringComparison]::OrdinalIgnoreCase
+    }
+    if ([string]::Equals($name, 'config.json', $comparison)) {
+        return Join-Path (Split-Path $Path -Parent) 'GerberCore.json'
+    }
+    return $Path
 }
 
 function Get-GerberUserConfigEnvironmentValue {

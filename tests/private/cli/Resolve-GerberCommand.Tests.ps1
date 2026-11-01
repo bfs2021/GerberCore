@@ -28,14 +28,6 @@ Describe 'Resolve-GerberCommand' {
         $result.ErrorMessage | Should -Match '/repository|/tools'
     }
 
-    It 'suggests matching leaf action commands for partial root search input without a slash' {
-        $result = Resolve-GerberCommand -InputText 'ado'
-
-        $result.IsValid | Should -BeFalse
-        $result.Suggestions.DisplayText | Should -Contain '/list ado-agents'
-        $result.Suggestions.DisplayText | Should -Contain '/list ado-team-members'
-    }
-
     It 'shows root suggestions for a lone slash' {
         $result = Resolve-GerberCommand -InputText '/'
 
@@ -191,14 +183,14 @@ Describe 'Resolve-GerberCommand' {
         $result = Resolve-GerberCommand -InputText '/list'
 
         $result.IsValid | Should -BeTrue
-        $result.Suggestions.DisplayText | Should -Be @('/list ado-agents', '/list ado-team-members')
+        $result.Suggestions | Should -BeNullOrEmpty
     }
 
     It 'previews repository subcommands for /repository' {
         $result = Resolve-GerberCommand -InputText '/repository'
 
         $result.IsValid | Should -BeTrue
-        $result.Suggestions.DisplayText | Should -Be @('/repository create')
+        $result.Suggestions | Should -BeNullOrEmpty
     }
 
     It 'previews plugin subcommands for /plugins' {
@@ -212,7 +204,7 @@ Describe 'Resolve-GerberCommand' {
         $result = Resolve-GerberCommand -InputText '/pipelines'
 
         $result.IsValid | Should -BeTrue
-        $result.Suggestions.DisplayText | Should -Be @('/pipelines tags')
+        $result.Suggestions | Should -BeNullOrEmpty
     }
 
     It 'treats /pipelines release as unknown when the example organization plugin is not installed' {
@@ -221,25 +213,6 @@ Describe 'Resolve-GerberCommand' {
         $result.IsValid | Should -BeFalse
         $result.Suggestions | Should -BeNullOrEmpty
         $result.ErrorMessage | Should -Match "Unknown command '/pipelines release'"
-    }
-
-    It 'previews tag actions for /pipelines tags' {
-        $result = Resolve-GerberCommand -InputText '/pipelines tags'
-
-        $result.IsValid | Should -BeTrue
-        $result.Suggestions.DisplayText | Should -Be @('/pipelines tags delete', '/pipelines tags update')
-    }
-
-    It 'describes the pipeline tag update action as an implemented workflow' {
-        $catalog = Get-GerberPipelinesTagsCommandCatalog
-
-        $catalog['update'].Description | Should -Be 'Replace one build tag with another across selected tagged pipeline runs'
-    }
-
-    It 'describes the pipeline tag delete action as an implemented workflow' {
-        $catalog = Get-GerberPipelinesTagsCommandCatalog
-
-        $catalog['delete'].Description | Should -Be 'Delete one build tag across selected tagged pipeline runs'
     }
 
     It 'previews secrets subcommands for /secrets' {
@@ -464,61 +437,16 @@ Describe 'Resolve-GerberCommand' {
         $catalog['alpha'].Subcommands.Keys | Should -Be @('beta')
     }
 
-    It 'previews the find subcommand for /branch' {
+    It 'keeps the generic branch root empty without registered plugin leaves' {
         $result = Resolve-GerberCommand -InputText '/branch' -ActionList @('tools', 'list', 'branch', 'repository', 'secrets', 'help', 'exit')
 
         $result.IsValid | Should -BeTrue
-        $result.Suggestions.DisplayText | Should -Contain '/branch find'
+        $result.Suggestions | Should -BeNullOrEmpty
     }
 
-    It 'resolves /branch find as a valid branch command' {
-        $result = Resolve-GerberCommand -InputText '/branch find' -ActionList @('tools', 'list', 'branch', 'repository', 'secrets', 'help', 'exit')
+    It 'keeps the generic repository catalog empty without registered plugin leaves' {
+        $catalog = (Get-GerberRegisteredCommand -Name repository).Subcommands
 
-        $result.IsValid | Should -BeTrue
-        $result.Name | Should -Be 'branch'
-        $result.Arguments | Should -Be @('find')
-    }
-
-    It 'includes find in the branch command catalog' {
-        $catalog = Get-GerberBranchCommandCatalog
-
-        $catalog.Keys | Should -Contain 'find'
-        $catalog['find'].Description | Should -Be 'Search all repositories for a branch path'
-    }
-
-    It 'includes set-searchable in the branch command catalog' {
-        $catalog = Get-GerberBranchCommandCatalog
-
-        $catalog.Keys | Should -Contain 'set-searchable'
-        $catalog['set-searchable'].Description | Should -Be 'Standardize searchable-branches policies across all repositories'
-    }
-
-    It 'resolves /branch set-searchable as a valid branch command' {
-        $result = Resolve-GerberCommand -InputText '/branch set-searchable' -ActionList @('tools', 'list', 'branch', 'repository', 'secrets', 'help', 'exit')
-
-        $result.IsValid | Should -BeTrue
-        $result.Name | Should -Be 'branch'
-        $result.Arguments | Should -Be @('set-searchable')
-    }
-
-    It 'previews set-searchable in branch subcommand suggestions' {
-        $result = Resolve-GerberCommand -InputText '/branch' -ActionList @('tools', 'list', 'branch', 'repository', 'secrets', 'help', 'exit')
-
-        $result.IsValid | Should -BeTrue
-        $result.Suggestions.DisplayText | Should -Contain '/branch set-searchable'
-    }
-
-    It 'does not suggest template subcommands for /repository create' {
-        $result = Resolve-GerberCommand -InputText '/repository create' -ActionList @('tools', 'list', 'branch', 'repository', 'secrets', 'help', 'exit')
-
-        $result.Suggestions.DisplayText | Should -Not -Contain '/repository create nuget'
-        $result.Suggestions.DisplayText | Should -Not -Contain '/repository create domain'
-        $result.Suggestions.DisplayText | Should -Not -Contain '/repository create cdm'
-    }
-
-    It 'create entry in repository catalog has no subcommands' {
-        $catalog = Get-GerberRepositoryCommandCatalog
-
-        $catalog['create'].Subcommands.Count | Should -Be 0
+        $catalog.Count | Should -Be 0
     }
 }

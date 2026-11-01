@@ -322,7 +322,10 @@ function ConvertTo-GerberPluginInventoryEntry {
 
     $discoveredRecord = Get-GerberPluginTableValue -Table $InventoryContext.DiscoveredRecordTable -Key $Guid
     $loadedPluginState = Get-GerberPluginTableValue -Table $InventoryContext.LoadedPluginStateTable -Key $Guid
-    $registeredCommandPathList = @(Get-GerberPluginTableValue -Table $InventoryContext.LoadedPluginCommandTable -Key $Guid)
+    $registeredCommandPathList = @(
+        Get-GerberPluginTableValue -Table $InventoryContext.LoadedPluginCommandTable -Key $Guid |
+            Where-Object { $null -ne $_ }
+    )
     $lifecycleState = Get-GerberPluginLifecycleState -Configuration $InventoryContext.Configuration -Guid $Guid
     $approvalStatus = Get-GerberPluginApprovalStatus -Configuration $InventoryContext.Configuration -Guid $Guid
     $isDiscovered = $null -ne $discoveredRecord

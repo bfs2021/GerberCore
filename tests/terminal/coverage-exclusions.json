@@ -48,12 +48,6 @@
     "reason": "The Base64 menu delegates validation failures to encode and decode; invalid decode recovery is covered."
   },
   {
-    "command": "pipelines tags",
-    "categories": ["error-recovery"],
-    "classification": "menu-container",
-    "reason": "The tags menu has no independent failure behavior beyond delete and update dispatch."
-  },
-  {
     "command": "exit",
     "categories": ["navigation", "error-recovery"],
     "classification": "terminal-action",

@@ -137,14 +137,15 @@ Describe 'Initialize-GerberTerminalHttpShim' {
     }
 }
 
-Describe 'Initialize-GerberPromptTracePath' {
+Describe 'Initialize-GerberPromptTracePath' -Tag 'TerminalFixtureExtraction' {
     It 'keeps the isolated configuration path available after initialization returns' {
         $tracePath = Join-Path $TestDrive 'runtime/prompt-debug.log'
 
         Initialize-GerberPromptTracePath -Path $tracePath
 
-        $configPath = Join-Path $TestDrive 'runtime/config.json'
+        $configPath = Join-Path $TestDrive 'runtime/GerberCore.json'
         Resolve-GerberConfigPath | Should -Be $configPath
         ((Get-Content -LiteralPath $configPath -Raw) | ConvertFrom-Json).schemaVersion | Should -Be 1
+        Test-Path -LiteralPath (Join-Path $TestDrive 'runtime/config.json') | Should -BeFalse
     }
 }

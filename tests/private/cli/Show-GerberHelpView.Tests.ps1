@@ -19,15 +19,15 @@ Describe 'Show-GerberHelpView' {
         $script:helpText | Should -Match '/tools'
         $script:helpText | Should -Match '/list'
         $script:helpText | Should -Match '/repository Open the interactive repository menu'
-        $script:helpText | Should -Match '/repository create Create a new repository from template'
+        $script:helpText | Should -Not -Match '/repository create Create a new repository from template'
         $script:helpText | Should -Match '/plugins Show Gerber plugin status and manage plugin activation'
         $script:helpText | Should -Match '/plugins list List discovered and persisted Gerber plugins'
         $script:helpText | Should -Match '/plugins info Show detailed plugin information by GUID or unique module name'
         $script:helpText | Should -Match '/pipelines'
-        $script:helpText | Should -Match '/pipelines tags Open the pipeline tag submenu'
+        $script:helpText | Should -Not -Match '/pipelines tags Open the pipeline tag submenu'
         $script:helpText | Should -Not -Match '/pipelines release'
-        $script:helpText | Should -Match '/pipelines tags delete'
-        $script:helpText | Should -Match '/pipelines tags update'
+        $script:helpText | Should -Not -Match '/pipelines tags delete'
+        $script:helpText | Should -Not -Match '/pipelines tags update'
         $script:helpText | Should -Match '/secrets'
         $script:helpText | Should -Match '/tools create-uuid'
         $script:helpText | Should -Match '/tools base-64'
@@ -37,5 +37,20 @@ Describe 'Show-GerberHelpView' {
         $script:helpText | Should -Not -Match '/http'
         $script:helpText | Should -Not -Match '/config'
         Should -Invoke Wait-GerberContinue -Times 1
+    }
+
+    It 'renders a registered neutral fixture leaf without Core owning its definition' {
+        Mock Get-GerberCommandRegistry {
+            @(
+                @{ Name = 'repository'; Description = 'Manage repositories'; Subcommands = [ordered]@{} }
+                @{ Name = 'repository inspect'; Description = 'Inspect the neutral fixture'; Subcommands = [ordered]@{} }
+            )
+        }
+        Mock Show-GerberTextBlock { $script:helpText = $Text }
+        Mock Wait-GerberContinue {}
+
+        Show-GerberHelpView
+
+        $script:helpText | Should -Match '/repository inspect Inspect the neutral fixture'
     }
 }

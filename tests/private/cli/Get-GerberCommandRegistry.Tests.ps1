@@ -18,17 +18,13 @@ Describe 'Get-GerberCommandRegistry' {
             'update',
             'help',
             'exit',
-            'list ado-agents',
-            'list ado-team-members',
             'tools create-uuid',
             'tools base-64',
-            'repository create',
             'plugins list',
             'plugins info',
             'plugins enable',
             'plugins disable',
             'plugins create',
-            'pipelines tags',
             'update list',
             'update policy'
         )

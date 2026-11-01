@@ -19,7 +19,7 @@ function Initialize-GerberTerminalConfigurationEnvironment {
         }
     }
 
-    $env:GERBER_CONFIG_PATH = Join-Path $runtimePath 'config.json'
+    $env:GERBER_CONFIG_PATH = Join-Path $runtimePath 'GerberCore.json'
     $env:HOME = $homePath
     $env:TEMP = $tempPath
     $env:TMP = $tempPath

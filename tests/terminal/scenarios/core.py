@@ -451,11 +451,7 @@ def registered_command_discovery(context) -> None:
 def root_menu_dispatch_contracts(context) -> None:
     expectation_map = {
         "tools": "/tools base-64",
-        "list": "/list ado-agents",
-        "branch": "/branch find",
-        "repository": "/repository create",
         "plugins": "/plugins info",
-        "pipelines": "/pipelines tags",
         "secrets": "/secrets get",
     }
     _verify_menu_dispatch_contracts(context, expectation_map)
@@ -466,10 +462,9 @@ def root_menu_dispatch_contracts(context) -> None:
     title="Nested menu dispatch contracts",
     categories=("core", "navigation", "rendering", "submission"),
     metadata=ScenarioMetadata(
-        commands=("tools base-64", "pipelines tags"),
+        commands=("tools base-64",),
         workflows=(
             "command:tools base-64",
-            "command:pipelines tags",
         ),
         coverage=("dispatch", "workflow", "navigation", "rendering"),
     ),
@@ -477,7 +472,6 @@ def root_menu_dispatch_contracts(context) -> None:
 def nested_menu_dispatch_contracts(context) -> None:
     expectation_map = {
         "tools base-64": "/tools base-64 decode",
-        "pipelines tags": "/pipelines tags delete",
     }
     _verify_menu_dispatch_contracts(context, expectation_map)
 

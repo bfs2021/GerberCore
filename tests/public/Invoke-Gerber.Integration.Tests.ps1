@@ -43,7 +43,7 @@ Describe 'Invoke-Gerber integration' {
                 (Join-Path $gerberProjectRoot 'dist')
                 ($originalModulePath -split [System.IO.Path]::PathSeparator)
             ) -join [System.IO.Path]::PathSeparator
-            $env:GERBER_CONFIG_PATH = Join-Path $TestDrive 'config.json'
+            $env:GERBER_CONFIG_PATH = Join-Path $TestDrive 'GerberCore.json'
             @{
                 schemaVersion = 1
                 plugins = @{
@@ -91,7 +91,7 @@ Describe 'Invoke-Gerber integration' {
                 (Join-Path $gerberProjectRoot 'dist')
                 ($originalModulePath -split [System.IO.Path]::PathSeparator)
             ) -join [System.IO.Path]::PathSeparator
-            $env:GERBER_CONFIG_PATH = Join-Path $TestDrive 'config.json'
+            $env:GERBER_CONFIG_PATH = Join-Path $TestDrive 'GerberCore.json'
             @{
                 schemaVersion = 1
                 plugins = @{
@@ -142,7 +142,7 @@ Describe 'Invoke-Gerber integration' {
                 (Join-Path $gerberProjectRoot 'dist')
                 ($originalModulePath -split [System.IO.Path]::PathSeparator)
             ) -join [System.IO.Path]::PathSeparator
-            $env:GERBER_CONFIG_PATH = Join-Path $TestDrive 'config.json'
+            $env:GERBER_CONFIG_PATH = Join-Path $TestDrive 'GerberCore.json'
             @{
                 schemaVersion = 1
                 plugins = @{

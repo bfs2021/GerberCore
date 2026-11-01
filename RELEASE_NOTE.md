@@ -4,6 +4,17 @@
 
 ### Changed
 
+- Azure DevOps now belongs to the separate **Gerber.AzureDevOps 0.1.0** plugin,
+  included in Core's declared dependencies. Approval and activation remain
+  explicit; disabled or declined plugins contribute no ADO commands.
+  Existing `/list`, `/repository`, `/branch` and `/pipelines tags` paths remain.
+- Core settings use `GerberCore.json`; plugin profiles use
+  `Gerber.AzureDevOps.json` through Plugin API v1. The legacy configuration
+  transition preserves originals on conflict or failure and never changes
+  approval or credentials. Missing plugin PATs are entered again through the
+  existing GUID-scoped Secrets API; old credentials remain untouched.
+  Publication and live PSGallery/internal-repository qualification are later
+  work, not performed by this extraction.
 - Gerber requires numeric PSModuleUpdate `0.2.0`, available from PSGallery.
   Dependency installation is a separate approved action, not automatic
   installation or cleanup of local Gerber. An up-to-date `0.1.0` remains visible

@@ -2,7 +2,8 @@
 
 Gerber is an interactive DevOps multitool for local PowerShell workflows. It runs as a lightweight terminal command palette with a minimal prompt-first home screen, then expands into interactive tools, reports, and secret-management flows on demand.
 
-Organization-specific plugin names, connection profiles and endpoints in examples are illustrative; they do not identify bundled plugins or live services.
+Gerber Core owns the shared platform; **Gerber.AzureDevOps** owns Azure DevOps
+operations. Other organization-specific names and endpoints in examples are illustrative.
 
 ## Run Gerber locally
 
@@ -26,7 +27,12 @@ Gerber targets PowerShell `7.4` and is designed to work on macOS, Windows, and L
 
 Gerber requires **NovaModuleTools** for its plugin-development functionality
 (creation, build, packaging and local publication) and **PSModuleUpdate** for
-integrated update management. Both are declared in `project.json` `RequiredModules`;
+integrated update management. **Gerber.AzureDevOps 0.1.0** is also declared in
+`project.json` `RequiredModules`, so it follows the existing distribution model.
+Importing that dependency does not approve or enable it in Gerber. Unknown
+plugins retain the normal default-decline approval flow; saved decline and
+disable decisions remain authoritative. Unrelated Core tools do not require
+an active Azure DevOps plugin.
 Nova build/package/publish operations do not run at startup. Gerber now performs a
 bounded, notification-only Core update check when `Invoke-Gerber` starts, and
 `/update list` checks afresh and installs only after explicit confirmation;
@@ -71,6 +77,34 @@ passed on macOS/PowerShell 7.4.21 and 7.6.6; normal Nova builds now regenerate b
 requirements in the ignored local manifest. See the
 [runtime dependency and update contract](docs/architecture/G-4A5-update-architecture.md).
 
+### Configuration files
+
+Core settings, including plugin approval, association and enabled state, live in
+`GerberCore.json`. Each plugin can use its own module-named JSON file in the same
+directory; Azure DevOps profiles live in `Gerber.AzureDevOps.json`.
+The directory follows the existing APPDATA, XDG_CONFIG_HOME or HOME resolution,
+not one hard-coded macOS/Linux path.
+
+`GERBER_CONFIG_PATH` remains an absolute **Core file** override. Plugins use its
+directory, not its filename. An override ending in legacy `config.json` selects
+the sibling `GerberCore.json` instead.
+Other explicit filenames are retained, including case-distinct filenames on
+Unix-like systems; Windows legacy filename matching remains case-insensitive.
+On the first Core configuration read, a sibling legacy `config.json` is split:
+non-ADO settings, including unknown fields, go to Core; `ado` goes to the Azure
+DevOps file. Existing disjoint or identical data is merged. Conflicts or invalid
+JSON stop the transfer with file-specific guidance and retain the originals.
+After a partial failure, retry is safe; the legacy file is deleted only after
+all transferred data is verified. This transition never approves or enables a
+plugin and never reads, migrates or deletes credentials.
+
+PATs must be re-entered at the first authenticated ADO use if the plugin's own
+secret is missing. Old Core credentials remain untouched. The plugin uses
+Secrets under GUID `a468dee5-c7a0-43e4-ae88-bb19158fe679`, never JSON.
+This checkout's new plugin dependency still needs publication for later clean
+PSGallery installation; local development uses built artifacts in isolated
+module paths, without global module installation.
+
 ## Interactive commands
 
 Gerber opens as a minimal prompt with inline root guidance:
@@ -95,10 +129,10 @@ Root commands and completion suggestions show `/exit`, `/help`, `/plugins`, and 
 | `/update` | Open the Core and plugin update submenu with list and policy actions |
 | `/update list` | Check Core and eligible installed plugins, select updates and confirm installation |
 | `/update policy` | Choose the shared Stable only (default) or Include prereleases update channel |
-| `/branch` | Open an inline submenu for repository branch operations such as `find` and `set-searchable` |
-| `/list` | Open an inline submenu for read-only list/report actions such as `ado-agents` and `ado-team-members`; plugins may contribute more beneath the same root |
-| `/pipelines` | Open an inline submenu for pipeline workflows such as `release common-data-model`, `release approve-environment`, `tags update`, and `tags delete` |
-| `/repository` | Open an inline submenu for built-in repository actions such as `create`; installed plugins may contribute more beneath the same root |
+| `/branch` | Shared root; active AzureDevOps contributes `find`, `set-searchable` and `set-default` |
+| `/list` | Shared report root; active AzureDevOps contributes `ado-agents` and `ado-team-members` |
+| `/pipelines` | Shared pipeline root; active AzureDevOps contributes `tags update` and `tags delete` |
+| `/repository` | Shared repository root; active AzureDevOps contributes `create` |
 | `/secrets` | Manage Gerber credentials through Gerber secure credential storage |
 | `/tools` | Open an inline submenu for interactive tools such as `create-uuid` and `base-64` |
 
@@ -121,9 +155,9 @@ Autocomplete is available directly in the slash-command prompt:
 - press `Esc` twice within 200 ms from shared Gerber prompts, menus, and continue screens to return directly to the root prompt without exiting Gerber
 - type `/tools` to preview `create-uuid`, `base-64` and `/tools base-64` previews `encode` and `decode`
 - type `/list` to preview `ado-agents` and `ado-team-members`, plus any installed plugin-provided list actions
-- type `/pipelines` to preview `release common-data-model`, `release approve-environment`, `release application`, `tags delete`, and `tags update`
+- with AzureDevOps active, type `/pipelines` to preview `tags delete` and `tags update`
 - type `/branch` to preview `find` and `set-searchable`
-- type `/repository` to preview `review` and `create`
+- with AzureDevOps active, type `/repository` to preview `create`
 - type `/plugins` to preview `create`, `disable`, `enable`, `info` and `list`
 - type `/secrets` to preview `list`, `get`, `test`, `set`, and `remove`
 - the selected suggestion shows a short help preview before you submit it
@@ -135,10 +169,8 @@ Examples inside the palette:
 /tools base-64 encode
 /tools base-64 decode
 /list ado-agents
-/pipelines release common-data-model
 /pipelines tags delete
 /pipelines tags update
-/pipelines release approve-environment
 /branch find
 /branch set-searchable
 /repository create
@@ -216,15 +248,15 @@ Gerber now includes a text-focused Base64 utility under `/tools`:
 
 ### `/list ado-agents`
 
-Gerber includes an Azure DevOps agent report under `/list`:
+The active **Gerber.AzureDevOps** plugin contributes this report under `/list`:
 
 - `/list ado-agents` shows BUILD pools first and DEPLOY pools second
-- Azure DevOps connection settings come from the user configuration file under `ado.defaultProfile` and `ado.profiles`
+- Azure DevOps connection settings come from `Gerber.AzureDevOps.json` under `ado.defaultProfile` and `ado.profiles`
 - when no suitable profile exists, Gerber can configure one inline, continue the same command, and store the chosen project URL under a named profile
 - when exactly one profile exists without a default, Gerber offers to use it now; when multiple profiles exist without a default, Gerber lets you choose one and optionally save it as the default
-- Gerber retrieves the PAT only when the report needs authentication, using the credential identifier derived from the active profile, such as `gerber:ado:example:pat`
+- The plugin retrieves the PAT only when authentication is required, through its GUID-scoped Secrets capability and logical path `ado/<profile>/pat`
 - when the profile exists but the PAT is missing, Gerber prompts for the token without re-asking for the project URL or profile name
-- Gerber stores Azure DevOps PATs only in secure credential storage; it does not read PATs from environment variables or `config.json`
+- Azure DevOps PATs remain in secure credential storage, never environment variables or JSON
 - pools and agents are sorted for predictable scanning
 - pools with no agents still appear with an explicit empty-pool message
 - missing BUILD or DEPLOY pool sections are called out explicitly
@@ -233,14 +265,14 @@ Gerber includes an Azure DevOps agent report under `/list`:
 
 ### `/list ado-team-members`
 
-Gerber includes an Azure DevOps team membership report under `/list`:
+The active **Gerber.AzureDevOps** plugin contributes this report under `/list`:
 
 - `/list ado-team-members` shows all projects and their teams with member counts in a compact summary
 - drill-in navigation lets you explore project → team → members without leaving the Gerber session
 - export the full report as JSON, CSV, or HTML to the current directory with a timestamped file name (e.g. `gerber-ado-team-members-20250101-120000.json`)
 - the HTML export includes a browser-side input that filters all rows in real time
 - export can be triggered at the summary level or after viewing a team's members; multiple formats can be exported in a single session
-- Azure DevOps connection settings come from the user configuration file under `ado.defaultProfile` and `ado.profiles`
+- Azure DevOps connection settings come from `Gerber.AzureDevOps.json` under `ado.defaultProfile` and `ado.profiles`
 - Gerber retrieves the active profile's PAT from secure credential storage only when the report needs authentication
 - first use follows the same inline Azure DevOps setup flow as the other authenticated ADO commands
 - non-interactive runs do not prompt; they fail with guidance to configure the profile and native credential first
@@ -248,13 +280,13 @@ Gerber includes an Azure DevOps team membership report under `/list`:
 
 ### `/pipelines`
 
-Gerber Core owns the generic `/pipelines` root plus built-in tag-maintenance commands.
-Installed plugins may contribute additional pipeline workflows beneath that same root when
-their organization-specific behavior does not belong in Core.
+Gerber Core owns the generic `/pipelines` root. Gerber.AzureDevOps contributes
+the tag-maintenance commands only when approved and enabled. Additional plugins
+may contribute workflows beneath the same root.
 
 ### `/pipelines tags delete`
 
-Gerber includes a build-tag deletion flow under `/pipelines`:
+The active **Gerber.AzureDevOps** plugin contributes this flow under `/pipelines`:
 
 - `/pipelines tags delete` asks for the current tag, finds every Azure DevOps build/run that still carries that tag, and shows those matches in one checkbox selector grouped by pipeline name
 - each tagged run starts selected, so you can delete the tag from one, many, or all matching runs in the same batch
@@ -264,7 +296,7 @@ Gerber includes a build-tag deletion flow under `/pipelines`:
 
 ### `/pipelines tags update`
 
-Gerber includes a build-tag replacement flow under `/pipelines`:
+The active **Gerber.AzureDevOps** plugin contributes this flow under `/pipelines`:
 
 - `/pipelines tags update` asks for the current tag and the replacement tag, finds every Azure DevOps build/run that currently carries the old tag, and shows those matches in one checkbox selector grouped by pipeline name
 - each tagged run starts selected, so you can update one, many, or all matching runs in the same batch
@@ -272,15 +304,14 @@ Gerber includes a build-tag replacement flow under `/pipelines`:
 - apply removes the old tag and adds the new tag on each selected run; failures are collected per run while the rest of the selected batch continues
 - after `Press Enter to continue`, Gerber returns to the `/pipelines tags update` flow so another tag batch can be updated without leaving the submenu
 
-### `/repository review`
+### Shared product roots
 
-Gerber Core no longer owns the DevOps review implementation. The sibling **Gerber.ExampleOrg** plugin contributes `/repository review` beneath the shared `/repository` root when that plugin is installed:
-
-- `/repository review` stays on the same public command path, but the full workflow now lives in Gerber.ExampleOrg
-- Gerber.ExampleOrg uses the public Gerber Plugin API for Azure DevOps access, UI rendering, clipboard copy, and prompt flow
-- plugin calls can now open either the default Azure DevOps connection or an explicit named profile through the same Gerber-owned first-use profile/PAT readiness flow as Core commands
-- the active review rules live in `Gerber.ExampleOrg/src/resources/Properties.json`
-- without Gerber.ExampleOrg installed, `/repository` keeps the built-in `create` action and does not expose `review`
+Core retains `/branch`, `/list`, `/repository` and `/pipelines` for plugin
+contributions. AzureDevOps owns `/repository create`, `/branch find`,
+`/branch set-searchable` and `/branch set-default`, alongside the reports and
+tag flows above. Their placement, arguments and navigation remain unchanged;
+they are not relocated under `/ado`. Other plugins own and qualify their own
+product commands; Core supplies no historical Azure DevOps API facade.
 
 ### `/plugins`
 
@@ -344,7 +375,11 @@ Gerber includes a credential-management surface backed by secure credential stor
 - when secure credential storage is unavailable, Gerber fails with actionable guidance and never falls back to plaintext storage
 - pressing `Enter` at the bare `/secrets` chooser opens `list`
 
-Gerber restricts identifiers to the case-insensitive `gerber:<scope>:<name>` namespace. Azure DevOps profiles use `gerber:ado:<profile>:pat`; plugin credentials use `gerber:plugin:<plugin-guid>:<path>`. This naming prevents accidental collisions but is not a process-isolation security boundary.
+Gerber restricts identifiers to the case-insensitive `gerber:<scope>:<name>`
+namespace. Plugin credentials use `gerber:plugin:<plugin-guid>:<path>`.
+AzureDevOps uses its own GUID and the logical `ado/<profile>/pat` path.
+Legacy `gerber:ado:<profile>:pat` entries remain untouched and are not reused.
+This naming prevents accidental collisions but is not process isolation.
 
 See [Credential service architecture](docs/architecture/credential-service.md) and [Native credential-store verification](docs/credential-store-verification.md) for backend prerequisites, packaging details, and manual cross-platform checks.
 
@@ -392,14 +427,15 @@ Use `/plugins enable` to approve and activate a previously declined plugin, or `
 
 ## Azure DevOps first-use setup
 
-Gerber now prepares Azure DevOps access lazily, only when a command actually needs a connection or PAT.
+Gerber.AzureDevOps prepares access lazily, only when its active command needs a
+connection or PAT. The plugin owns profile validation, setup and ADO transport.
 
 - startup, `/help`, `/secrets`, plugin discovery, and unrelated commands do not trigger Azure DevOps setup
 - if no profile exists, Gerber offers to create one inline by asking only for the Azure DevOps project URL, connection name, optional default-profile choice, and PAT when the command needs authentication
 - if a named profile is requested and missing, Gerber offers to configure that exact profile instead of silently switching to another one
 - plugin ADO operations keep the selected connection context explicit, so multiple named profiles can coexist in one session without switching a global current connection
 - Azure DevOps Services and Server both use the existing URL parser; when a Server URL needs an explicit root, Gerber asks for the minimum extra server-root input and still applies the existing HTTP safety rules
-- PAT entry uses a non-echoing prompt and stores the token through the native credential service under `gerber:ado:<profile>:pat`
+- PAT entry uses a non-echoing prompt and the plugin's existing Secrets capability under its manifest GUID
 - Gerber resolves PATs lazily for plugin ADO operations; metadata-only plugin calls do not trigger PAT lookup or PAT setup prompts
 - cancellation leaves existing configuration unchanged and stops the pending command cleanly
 - if configuration saves but credential storage fails, Gerber reports the incomplete state clearly so the same command can be retried safely
@@ -422,12 +458,17 @@ The current suite covers:
 
 - command parsing and invalid commands
 - interactive menu behavior
-- Azure DevOps reporting
 - secret-management flows
 - tool-specific interactions such as Base64 flows
 - PTY-backed prompt rendering and cursor movement
-- generic Plugin API discovery, dispatch, credential, clipboard, ADO, and recovery contracts through `Gerber.TerminalFixture`
+- generic Plugin API discovery, dispatch, configuration, credential, clipboard and recovery contracts through `Gerber.TerminalFixture`
 - error formatting and prompt behavior
+
+Azure DevOps domain tests and product terminal scenarios live in the
+Gerber.AzureDevOps repository. It can be built and tested independently through
+Nova; built-module integration uses the required Core API without private
+module-scope shortcuts. Later distribution qualification still requires the
+published PSGallery plugin and a separately owned internal-repository plugin.
 
 Run the zero-finding validation flow with:
 

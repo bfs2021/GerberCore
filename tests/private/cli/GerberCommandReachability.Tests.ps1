@@ -5,17 +5,8 @@ $script:resolvedCommandCaseList = @(
     @{ CommandPath = '/tools base-64'; ExpectedRootName = 'tools'; ExpectedArguments = @('base-64') }
     @{ CommandPath = '/tools base-64 encode'; ExpectedRootName = 'tools'; ExpectedArguments = @('base-64', 'encode') }
     @{ CommandPath = '/tools base-64 decode'; ExpectedRootName = 'tools'; ExpectedArguments = @('base-64', 'decode') }
-    @{ CommandPath = '/list ado-agents'; ExpectedRootName = 'list'; ExpectedArguments = @('ado-agents') }
-    @{ CommandPath = '/list ado-team-members'; ExpectedRootName = 'list'; ExpectedArguments = @('ado-team-members') }
-    @{ CommandPath = '/branch find'; ExpectedRootName = 'branch'; ExpectedArguments = @('find') }
-    @{ CommandPath = '/branch set-default'; ExpectedRootName = 'branch'; ExpectedArguments = @('set-default') }
-    @{ CommandPath = '/branch set-searchable'; ExpectedRootName = 'branch'; ExpectedArguments = @('set-searchable') }
-    @{ CommandPath = '/repository create'; ExpectedRootName = 'repository'; ExpectedArguments = @('create') }
     @{ CommandPath = '/plugins list'; ExpectedRootName = 'plugins'; ExpectedArguments = @('list') }
     @{ CommandPath = '/plugins info Gerber.TestPlugin'; ExpectedRootName = 'plugins'; ExpectedArguments = @('info', 'Gerber.TestPlugin') }
-    @{ CommandPath = '/pipelines tags'; ExpectedRootName = 'pipelines'; ExpectedArguments = @('tags') }
-    @{ CommandPath = '/pipelines tags delete'; ExpectedRootName = 'pipelines'; ExpectedArguments = @('tags', 'delete') }
-    @{ CommandPath = '/pipelines tags update'; ExpectedRootName = 'pipelines'; ExpectedArguments = @('tags', 'update') }
     @{ CommandPath = '/secrets list'; ExpectedRootName = 'secrets'; ExpectedArguments = @('list') }
     @{ CommandPath = '/secrets get'; ExpectedRootName = 'secrets'; ExpectedArguments = @('get') }
     @{ CommandPath = '/secrets test'; ExpectedRootName = 'secrets'; ExpectedArguments = @('test') }
@@ -26,22 +17,13 @@ $script:resolvedCommandCaseList = @(
 $script:registeredMenuLeafNameList = @(
     'tools create-uuid',
     'tools base-64',
-    'list ado-agents',
-    'list ado-team-members',
-    'repository create',
     'plugins list',
-    'plugins info',
-    'pipelines tags'
+    'plugins info'
 )
 
 $script:internalActionCommandNameList = @(
     'tools base-64 encode',
     'tools base-64 decode',
-    'branch find',
-    'branch set-default',
-    'branch set-searchable',
-    'pipelines tags delete',
-    'pipelines tags update',
     'secrets list',
     'secrets test',
     'secrets get',
@@ -83,28 +65,22 @@ Describe 'Gerber command reachability' {
     It 'detects missing registry-driven menu leaf commands through in-memory registry manipulation' {
         $registeredCommandList = @(
             Get-GerberCommandRegistry |
-                Where-Object { $_.Name -notin @('repository create', 'pipelines tags') }
+                Where-Object { $_.Name -notin @('tools create-uuid', 'plugins list') }
         )
         $registeredCommandNameList = @($registeredCommandList.Name)
 
-        $registeredCommandNameList | Should -Not -Contain 'repository create'
-        $registeredCommandNameList | Should -Not -Contain 'pipelines tags'
+        $registeredCommandNameList | Should -Not -Contain 'tools create-uuid'
+        $registeredCommandNameList | Should -Not -Contain 'plugins list'
     }
 
     It 'routes direct invocation of registry-driven menu commands through the live registry' -ForEach @(
         @{ RootName = 'tools'; Subcommand = 'create-uuid'; MockTarget = 'Show-GerberCreateUuidTool' }
-        @{ RootName = 'list'; Subcommand = 'ado-agents'; MockTarget = 'Invoke-GerberListAdoAgentsCommand' }
-        @{ RootName = 'repository'; Subcommand = 'create'; MockTarget = 'Show-GerberRepositoryCreateView' }
         @{ RootName = 'plugins'; Subcommand = 'list'; MockTarget = 'Invoke-GerberPluginsListCommand' }
-        @{ RootName = 'pipelines'; Subcommand = 'tags'; MockTarget = 'Show-GerberPipelinesTagsView' }
     ) {
         param($RootName, $Subcommand, $MockTarget)
 
         Mock Show-GerberCreateUuidTool {}
-        Mock Invoke-GerberListAdoAgentsCommand {}
-        Mock Show-GerberRepositoryCreateView {}
         Mock Invoke-GerberPluginsListCommand {}
-        Mock Show-GerberPipelinesTagsView {}
 
         $subcommandName = Get-GerberMenuSubcommand `
             -CommandName $RootName `
@@ -120,9 +96,6 @@ Describe 'Gerber command reachability' {
 
     It 'routes interactive registry-driven menus through the live registry' -ForEach @(
         @{ ViewFunction = 'Show-GerberToolsView'; SelectedSubcommand = 'create-uuid'; MockTarget = 'Show-GerberCreateUuidTool' }
-        @{ ViewFunction = 'Show-GerberListView'; SelectedSubcommand = 'ado-agents'; MockTarget = 'Invoke-GerberListAdoAgentsCommand' }
-        @{ ViewFunction = 'Show-GerberRepositoryView'; SelectedSubcommand = 'create'; MockTarget = 'Show-GerberRepositoryCreateView' }
-        @{ ViewFunction = 'Show-GerberPipelinesView'; SelectedSubcommand = 'tags'; MockTarget = 'Show-GerberPipelinesTagsView' }
     ) {
         param($ViewFunction, $SelectedSubcommand, $MockTarget)
 
@@ -137,9 +110,6 @@ Describe 'Gerber command reachability' {
             return ''
         }
         Mock Show-GerberCreateUuidTool {}
-        Mock Invoke-GerberListAdoAgentsCommand {}
-        Mock Show-GerberRepositoryCreateView {}
-        Mock Show-GerberPipelinesTagsView {}
 
         & $ViewFunction ([pscustomobject]@{ Arguments = @() })
 

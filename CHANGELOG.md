@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Added identity-bound Plugin API v1 `Configuration.Read` and
+  `Configuration.Save` for schema-free, module-named JSON files beside Core
+  configuration, with strict JSON errors and atomic publication. Added the
+  concrete shared UI and HTTP metadata operations required by AzureDevOps;
+  authenticated ADO transport is not part of Core.
 - Added G-4A9 installed-plugin update selection to `/update list`, using the
   existing shared channel and per-plugin `PrivateData.Gerber.Repository`
   descriptors (`Name` for display, canonical `Uri` for PMU). Names survive
@@ -47,6 +52,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Azure DevOps implementation, commands, configuration interpretation, REST,
+  resources and product regressions now belong to **Gerber.AzureDevOps 0.1.0**,
+  declared as a Core runtime dependency. Existing command paths remain;
+  import does not approve or enable the plugin. Core retains generic platform
+  roots, UI, configuration persistence, credentials and plugin lifecycle.
+- Core defaults to `GerberCore.json`; ADO settings use
+  `Gerber.AzureDevOps.json`. A repeatable legacy `config.json` split preserves
+  unknown settings and destination data, retains originals on conflict or
+  failure, and removes the old file only after verification. Legacy file
+  overrides resolve to the named Core sibling. PATs use the plugin's existing
+  GUID-scoped Secrets API and must be re-entered when missing; legacy Core
+  credentials are never migrated, reused or deleted.
 - Core update completion now offers **Exit Gerber** or **Continue with current
   version** after verified success requiring restart, or discovery of an
   already-installed newer Core. Continue is the default and Esc also continues.
@@ -57,6 +74,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Removed
 
+- Removed Core-owned ADO Plugin API capabilities and built-in product dispatch.
+  No compatibility facade or new Plugin API version is introduced.
 ### Added
 
 ### Fixed

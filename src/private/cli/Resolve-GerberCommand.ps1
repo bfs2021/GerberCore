@@ -315,18 +315,6 @@ function Get-GerberListCommandCatalog {
     return [ordered]@{}
 }
 
-function Get-GerberBranchCommandCatalog {
-    [OutputType([System.Collections.Specialized.OrderedDictionary])]
-    [CmdletBinding()]
-    param()
-
-    return [ordered]@{
-        find             = ConvertTo-GerberCommandCatalogEntry -Description 'Search all repositories for a branch path'
-        'set-searchable' = ConvertTo-GerberCommandCatalogEntry -Description 'Standardize searchable-branches policies across all repositories'
-        'set-default'    = ConvertTo-GerberCommandCatalogEntry -Description 'Standardize the default branch across all repositories'
-    }
-}
-
 function Get-GerberSecretsCommandCatalog {
     [OutputType([System.Collections.Specialized.OrderedDictionary])]
     [CmdletBinding()]
@@ -338,37 +326,6 @@ function Get-GerberSecretsCommandCatalog {
         test = ConvertTo-GerberCommandCatalogEntry -Description 'Check whether a Gerber credential exists'
         set = ConvertTo-GerberCommandCatalogEntry -Description 'Create or overwrite a stored Gerber secret'
         remove = ConvertTo-GerberCommandCatalogEntry -Description 'Remove a stored Gerber secret'
-    }
-}
-
-function Get-GerberRepositoryCommandCatalog {
-    [OutputType([System.Collections.Specialized.OrderedDictionary])]
-    [CmdletBinding()]
-    param()
-
-    return [ordered]@{
-        create = ConvertTo-GerberCommandCatalogEntry -Description 'Create a new repository from template'
-    }
-}
-
-function Get-GerberPipelinesCommandCatalog {
-    [OutputType([System.Collections.Specialized.OrderedDictionary])]
-    [CmdletBinding()]
-    param()
-
-    return [ordered]@{
-        tags    = ConvertTo-GerberCommandCatalogEntry -Description 'Open the pipeline tag submenu' -Subcommands (Get-GerberPipelinesTagsCommandCatalog)
-    }
-}
-
-function Get-GerberPipelinesTagsCommandCatalog {
-    [OutputType([System.Collections.Specialized.OrderedDictionary])]
-    [CmdletBinding()]
-    param()
-
-    return [ordered]@{
-        delete = ConvertTo-GerberCommandCatalogEntry -Description 'Delete one build tag across selected tagged pipeline runs'
-        update = ConvertTo-GerberCommandCatalogEntry -Description 'Replace one build tag with another across selected tagged pipeline runs'
     }
 }
 
@@ -438,6 +395,9 @@ function Get-GerberKnownCommandResolution {
     $commandPathTokenList = @($TokenData.NormalizedTokenList[0])
     $pathIndex = 1
     $currentCommandData = $commandData
+    if (Test-GerberUnregisteredRootAction -CommandData $commandData -TokenData $TokenData) {
+        return Get-GerberUnknownSubcommandResolution -InputText $InputText -CommandPathTokenList $commandPathTokenList -CurrentCommandData $commandData -SubcommandInput $TokenData.NormalizedTokenList[1]
+    }
 
     while ($pathIndex -lt $TokenData.NormalizedTokenList.Count) {
         $subcommandTable = Get-GerberCatalogEntrySubcommandTable -Entry $currentCommandData
@@ -468,6 +428,13 @@ function Get-GerberKnownCommandResolution {
     }
 
     return ConvertTo-GerberResolvedCommand -IsValid $true -Name $TokenData.CommandName -Arguments $arguments -ErrorMessage $null -Suggestions @()
+}
+
+function Test-GerberUnregisteredRootAction {
+    param([hashtable]$CommandData, [pscustomobject]$TokenData)
+    if ($TokenData.NormalizedTokenList.Count -lt 2) { return $false }
+    if ($TokenData.CommandName -notin @('list', 'branch', 'repository', 'pipelines')) { return $false }
+    return (Get-GerberCatalogEntrySubcommandTable -Entry $CommandData).Count -eq 0
 }
 
 function Test-GerberCommandHasSubcommandMenu {
@@ -653,6 +620,7 @@ function Get-GerberMatchingTokenList {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
         [System.Collections.IEnumerable]$CandidateList,
 
         [Parameter(Mandatory)]
@@ -661,6 +629,9 @@ function Get-GerberMatchingTokenList {
     )
 
     $candidateNameList = @(Get-GerberAlphabeticallySortedStringList -ValueList $CandidateList)
+    if ($candidateNameList.Count -eq 0) {
+        return @()
+    }
     if ([string]::IsNullOrWhiteSpace($InputToken)) {
         return $candidateNameList
     }

@@ -465,7 +465,7 @@ function Initialize-GerberPromptTracePath {
         $null = New-Item -ItemType Directory -Path $directoryPath -Force
     }
 
-    $script:GerberTerminalConfigPath = Join-Path $directoryPath 'config.json'
+    $script:GerberTerminalConfigPath = Join-Path $directoryPath 'GerberCore.json'
     if (-not (Test-Path -LiteralPath $script:GerberTerminalConfigPath -PathType Leaf)) {
         [System.IO.File]::WriteAllText(
             $script:GerberTerminalConfigPath,

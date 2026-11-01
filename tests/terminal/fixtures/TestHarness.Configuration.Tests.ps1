@@ -2,7 +2,7 @@ BeforeAll {
     . (Join-Path $PSScriptRoot 'TestHarness.Configuration.ps1')
 }
 
-Describe 'Initialize-GerberTerminalConfigurationEnvironment' {
+Describe 'Initialize-GerberTerminalConfigurationEnvironment' -Tag 'TerminalFixtureExtraction' {
     BeforeEach {
         $script:originalConfigPath = $env:GERBER_CONFIG_PATH
         $script:originalHome = $env:HOME
@@ -26,7 +26,7 @@ Describe 'Initialize-GerberTerminalConfigurationEnvironment' {
 
         Initialize-GerberTerminalConfigurationEnvironment -PromptTracePath $promptTracePath
 
-        $env:GERBER_CONFIG_PATH | Should -Be (Join-Path $TestDrive 'runtime/config.json')
+        $env:GERBER_CONFIG_PATH | Should -Be (Join-Path $TestDrive 'runtime/GerberCore.json')
         $env:HOME | Should -Be (Join-Path $TestDrive 'runtime/home')
         $env:TEMP | Should -Be (Join-Path $TestDrive 'runtime/temp')
         $env:TMP | Should -Be (Join-Path $TestDrive 'runtime/temp')

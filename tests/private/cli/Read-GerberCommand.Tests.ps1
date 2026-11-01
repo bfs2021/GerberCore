@@ -589,13 +589,13 @@ Describe 'Invoke-GerberEnterSubmit' {
     It 'executes the highlighted nested action command from root search on Enter' {
         $enterKey = [System.ConsoleKeyInfo]::new([char]13, [System.ConsoleKey]::Enter, $false, $false, $false)
         $state = @{
-            Buffer = 'ado'
-            CursorIndex = 3
+            Buffer = 'uuid'
+            CursorIndex = 4
             SuggestionIndex = 0
             SuggestionList = @([pscustomobject]@{
-                    DisplayText = '/list ado-agents'
-                    CompletionText = '/list ado-agents'
-                    PreviewText = 'Show Azure DevOps agents'
+                    DisplayText = '/tools create-uuid'
+                    CompletionText = '/tools create-uuid'
+                    PreviewText = 'Generate a GUID'
                 })
             SuggestionMode = 'Root'
             SuggestionNavigationUsed = $false
@@ -608,7 +608,7 @@ Describe 'Invoke-GerberEnterSubmit' {
 
         $result.ShouldContinue | Should -BeFalse
         $result.ShouldSubmit | Should -BeTrue
-        $result.Value | Should -Be '/list ado-agents'
+        $result.Value | Should -Be '/tools create-uuid'
     }
 
     It 'enters the tools submenu when Enter applies a highlighted root command suggestion' {

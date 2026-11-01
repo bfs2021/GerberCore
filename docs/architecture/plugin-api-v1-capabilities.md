@@ -1,160 +1,139 @@
 # Plugin API v1 capabilities
 
-This document records the current **implemented** Plugin API v1 surface that Gerber Core exposes to installed plugins such as `Gerber.ExampleOrg`.
+This is the implemented public context supplied to approved, enabled Gerber
+plugins. Operations are scriptblocks invoked with `&`. `ApiVersion` remains
+`"1"`; `PluginId` is the registered manifest GUID.
 
-For a working minimal consumer, use [`/plugins create`](../plugins-create.md).
-Gerber generates a namespace parent and `hello` leaf, using only the supplied
-`UI.ReadSubcommand`, `UI.ShowTextBlock` and `UI.WaitForContinue` operations. Nova
-generates the manifest from `project.json`, including `Manifest.PrivateData.Gerber`
-(`Plugin: true`, `ApiVersion: "1"` and minimum Core version).
-Only `Manifest.GUID` defines project identity; no redundant
-`PrivateData.Gerber.Guid` is generated. The public plugin definition's `Guid`
-still matches the canonical manifest GUID for registration.
-Generated AGENTS.md embeds the relevant public capability contract and command
-development workflow; thin tool bridges and focused skills reference that guide.
+[`/plugins create`](../plugins-create.md) generates a minimal UI consumer.
+Gerber.AzureDevOps is a separate reference plugin for the configuration,
+Secrets, UI and HTTP metadata capabilities it actually uses. Azure DevOps
+profiles, authentication, REST and product operations belong to that plugin,
+not a Core `Ado` capability. Core supplies no historical ADO facade.
+Consumers of the new Configuration/UI/Http operations must declare
+`MinimumGerberVersion` of at least `0.2.1-preview02`, the Core version supplying
+them; API v1 alone does not establish capability availability in older Core.
 
 ## Capability inventory
+
+### Configuration
+
+| Operation | Signature | Purpose |
+| --- | --- | --- |
+| `Read` | `()` | Read the registered plugin's own JSON; missing files return null without creating a file. |
+| `Save` | `($Value)` | Serialize and atomically publish the plugin's own JSON. |
+
+Core binds the capability to the discovered, registered module name. Its file is
+`<ModuleName>.json` beside the resolved Core file, for example
+`Gerber.AzureDevOps.json` beside `GerberCore.json`. Plugins cannot provide a
+filename, another module name or an arbitrary path through this API. A collision
+with an explicitly selected Core file is rejected.
+
+The plugin owns the JSON structure, defaults and domain validation. Maps,
+arrays, scalars and null are supported; no Core schema or metadata is added.
+JSON strings remain strings, including ISO timestamps and their original offsets;
+Core does not infer a date schema.
+Invalid JSON raises an actionable file-specific error and is not replaced by
+defaults, including on Save. Serialization failures and failed publication
+preserve the previous file; staged files are cleaned up. File writes use the
+shared atomic publication and platform permission infrastructure.
+
+```powershell
+$settings = & $Gerber.Configuration.Read
+if ($null -eq $settings) { $settings = @{ preferredView = 'summary' } }
+& $Gerber.Configuration.Save $settings
+```
+
+Do not save PATs, passwords or tokens in JSON. Use Secrets instead. This API
+does not inspect content for secrets or migrate credentials.
+`GERBER_CONFIG_PATH` is an absolute Core-file override; plugin files follow its
+directory. A legacy `config.json` override selects sibling `GerberCore.json`.
+Core's bounded legacy transition transfers non-ADO fields to Core and the
+`ado` section to AzureDevOps JSON, preserving unknown fields. Conflicts retain
+originals with guidance; partial failures are retryable. The old file is removed
+only after complete verification. Normal plugin reads do not access Core data,
+and transition does not approve or activate a plugin.
 
 ### UI
 
 | Operation | Signature | Purpose |
 | --- | --- | --- |
-| `ReadSubcommand` | `($CommandName, $Command, $SubcommandTable)` | Reuse Gerber's inline submenu flow. |
-| `ShowTextBlock` | `($Title, $Text)` | Render plugin result and error screens through Gerber-owned terminal UI. |
-| `ShowScreenLines` | `($Title, $LineList)` | Render a Gerber-owned action screen before plugin work. |
-| `ReadNumberedMenuSelection` | `($Prompt, $ScreenTitle, $ScreenText, $MenuItemList)` | Reuse Gerber's numbered chooser flow. |
-| `ReadNumberedMenuPrompt` | `($Prompt, $ScreenTitle, $ScreenText, $MenuItemList)` | Reuse Gerber's generic numbered prompt flow. |
-| `ReadCheckboxMenuPrompt` | `($PromptRequest)` | Reuse Gerber's checkbox prompt flow. |
-| `ReadConfirmationPrompt` | `($Prompt, $ScreenTitle, $ScreenText, $PromptOptionSet)` | Reuse Gerber's confirmation prompt flow. |
-| `ReadCommand` | `($Prompt, $SuggestionMode, $InputMode, $PromptContext, $TrimResult)` | Reuse Gerber's inline command-input prompt flow. |
-| `ReadSecretText` | `($Prompt)` | Read a secret value with Gerber's secure input behavior and escape handling. |
-| `StartScreen` | `($Name)` | Start a Gerber-owned screen region. |
-| `WriteScreenLine` | `($Text = '')` | Write one Gerber-owned screen line. |
-| `WriteProgressBar` | `($Current, $Total, $Prefix, $OverwritePreviousRender)` | Reuse Gerber's progress-bar rendering. |
-| `WritePromptTrace` | `($EventName, $Data = @{})` | Emit prompt-trace events through Gerber's tracing infrastructure. |
-| `WaitForContinue` | `()` | Return control through Gerber's continue-screen contract. |
+| `ReadSubcommand` | `($CommandName, $Command, $SubcommandTable, $AutoSelectFirstSuggestionOnSubmit = $false)` | Reuse inline submenu navigation; optionally preserve default Enter selection. |
+| `ShowTextBlock` | `($Title, $Text)` | Render result and error screens. |
+| `ShowScreenLines` | `($Title, $LineList)` | Render an action screen. |
+| `ReadNumberedMenuSelection` | `($Prompt, $ScreenTitle, $ScreenText, $MenuItemList)` | Reuse numbered selection. |
+| `ReadNumberedMenuPrompt` | `($Prompt, $ScreenTitle, $ScreenText, $MenuItemList)` | Reuse a numbered prompt. |
+| `ReadCheckboxMenuPrompt` | `($PromptRequest)` | Reuse checkbox selection. |
+| `ReadConfirmationPrompt` | `($Prompt, $ScreenTitle, $ScreenText, $PromptOptionSet)` | Reuse confirmation. |
+| `ReadCommand` | `($Prompt, $SuggestionMode, $InputMode, $PromptContext, $TrimResult)` | Reuse inline command input. |
+| `ReadSecretText` | `($Prompt)` | Read secret text with neutral Escape handling. |
+| `ReadSecureValue` | `($Prompt)` | Read a SecureString, preserving Escape exceptions for callers that own cancellation. |
+| `IsInteractive` | `()` | Check whether interactive prompt input is available. |
+| `IsEscapeException` | `($Exception)` | Recognize the shared Escape/back exception. |
+| `GetEscapeException` | `()` | Create the shared Escape/back exception. |
+| `StartScreen` | `($Name)` | Start a screen region. |
+| `WriteScreenLine` | `($Text = '')` | Write a screen line. |
+| `WriteStyledPromptText` | `($Text, $Style)` | Render with an existing Gerber prompt-style object. |
+| `GetPromptColorPair` | `()` | Read the platform prompt foreground/background colors. |
+| `ShowMenuError` | `($Message)` | Render a recoverable Gerber-owned menu error. |
+| `WriteProgressBar` | `($Current, $Total, $Prefix, $OverwritePreviousRender)` | Render progress. |
+| `WritePromptTrace` | `($EventName, $Data = @{})` | Emit prompt diagnostics; never supply secrets. |
+| `WaitForContinue` | `()` | Reuse continue-screen navigation. |
 
-### Ado
+These operations retain existing input, rendering, Escape and pipeline-stop
+semantics. Plugins must check interactive availability before first-use setup;
+noninteractive missing credentials must not open prompts.
+
+### Http
 
 | Operation | Signature | Purpose |
 | --- | --- | --- |
-| `OpenConnection` | `($CommandLabel, $ProfileName = '')` | Resolve the default or an explicit named Azure DevOps connection through Gerber-owned profile selection and readiness. |
-| `NewProjectUri` | `($Connection, $RelativePath, $QueryParameterMap = [ordered]@{})` | Build a connection-scoped Azure DevOps API URI without retrieving a PAT. |
-| `InvokeGet` | `($Connection, $Uri, $RequestLabel)` | Execute a Core-owned authenticated Azure DevOps GET request. |
-| `GetPendingApprovalList` | `($Connection, $EnvironmentId)` | Read pending pipeline approvals. |
-| `GetEnvironmentList` | `($Connection)` | Read Azure DevOps environments. |
-| `ResolvePipelineDefinitionFromUrl` | `($Connection, $PipelineUrl)` | Resolve a pipeline definition from a build URL. |
-| `GetPipelineRunList` | `($RunListRequest)` | Read build/run metadata through a request object whose `Connection` is resolved by Core. |
-| `StartPipelineRun` | `($RunRequest)` | Start a pipeline run through a request object whose `Connection` is resolved by Core. |
-| `WaitPipelineRunCompletion` | `($RunWaitRequest)` | Poll a pipeline run through a request object whose `Connection` is resolved by Core. |
-| `ApprovePipelineApproval` | `($Connection, $ApprovalId, $Comment)` | Approve a pending pipeline approval. |
-| `StopPipelineRun` | `($Connection, $BuildId)` | Stop a pipeline run. |
-| `GetBuildTagList` | `($Connection, $BuildId)` | Read build tags for a run. |
-| `AddBuildTagIfMissing` | `($Connection, $BuildId, $Tag)` | Add a build tag when it is not already present. |
-| `RemoveBuildTag` | `($Connection, $BuildId, $Tag)` | Remove a build tag from a run. |
-| `AddBuildRetentionLeaseIfMissing` | `($Connection, $DefinitionId, $BuildId)` | Ensure a retention lease exists for a run. |
-| `GetBuildRunUrl` | `($Connection, $BuildId)` | Build the Azure DevOps run URL from the selected connection without retrieving a PAT. |
-| `GetWorkItemIdFromUrl` | `($WorkItemUrl)` | Parse a work-item ID from an Azure DevOps work-item URL. |
-| `GetWorkItemFieldMap` | `($WorkItemRequest)` | Read work-item fields through a request object whose `Connection` is resolved by Core. |
-| `UpdateWorkItemFields` | `($UpdateRequest)` | Apply generic work-item field updates through a request object whose `Connection` is resolved by Core. |
+| `GetConfiguration` | `()` | Read shared `ConnectionTimeoutSeconds` and `OperationTimeoutSeconds`. |
+| `GetTransportFailureHint` | `($Exception)` | Obtain shared DNS/network or timeout recovery guidance. |
+| `IsTimeoutFailure` | `($Exception)` | Recognize nested task-cancellation timeout failures. |
 
-### ADO connection context
-
-`OpenConnection` now returns a non-sensitive connection context rather than a PAT-backed opaque handle. The context keeps the selected profile bound to later operations:
-
-```powershell
-$defaultConnection = & $Gerber.Ado.OpenConnection '/repository review'
-$namedConnection = & $Gerber.Ado.OpenConnection '/pipelines release common-data-model' 'SampleProject'
-
-$namedConnection.ProfileName
-$namedConnection.DeploymentType
-$namedConnection.ServerUri
-$namedConnection.CollectionUri
-$namedConnection.ProjectName
-$namedConnection.ProjectUri
-```
-
-Current public properties:
-
-- `Id`
-- `CommandLabel`
-- `ProfileName`
-- `DeploymentType`
-- `ServerUri`
-- `Organization`
-- `Collection`
-- `CollectionName`
-- `CollectionUri`
-- `ProjectName`
-- `ProjectUri`
-
-The connection context never includes a `Pat`, `Token`, or `CredentialIdentifier` property.
-
-### Default and explicit profile behavior
-
-- `OpenConnection '/command label'` uses the configured default profile when one exists.
-- If no default exists, Core reuses the existing readiness flow: one-profile reuse, multi-profile selection, or first-use setup.
-- `OpenConnection '/command label' 'SampleProject'` resolves that exact profile name case-insensitively and preserves the configured display casing in the returned context.
-- An explicit profile never falls back to the default profile. If the profile is missing, Core reuses the existing readiness flow to configure that exact profile in interactive sessions and returns an actionable error in non-interactive sessions.
-
-### Authentication and credential boundaries
-
-- `OpenConnection` resolves connection metadata only. It does **not** retrieve a PAT.
-- Authenticated ADO operations retrieve the PAT lazily through Gerber Core and the native credential store entry `gerber:ado:<profile>:pat`.
-- Metadata-only operations such as `NewProjectUri` and `GetBuildRunUrl` do not trigger PAT lookup or PAT setup prompts.
-- Plugins do not need to read `config.json`, construct credential identifiers, or access Keychain / Credential Manager directly.
-
-### Multiple connections
-
-Every ADO operation now uses the supplied connection context rather than re-reading the default profile implicitly:
-
-```powershell
-$example = & $Gerber.Ado.OpenConnection '/repository review' 'EXAMPLE'
-$atlas = & $Gerber.Ado.OpenConnection '/list common-data-model' 'ATLAS'
-
-$examplePullRequest = & $Gerber.Ado.GetPullRequest $example $pullRequestReference
-$atlasRunUrl = & $Gerber.Ado.GetBuildRunUrl $atlas 6406
-```
-
-This allows multiple named connections to coexist in the same Gerber session without switching global state.
-
-### Non-interactive behavior
-
-When Gerber runs without interactive console input:
-
-- missing explicit profiles fail with guidance to configure that exact profile and its native credential first
-- missing PATs fail with guidance to configure secure credential storage and rerun interactively
-- no prompts are shown during plugin execution
+This is platform metadata and error classification, not authenticated HTTP
+transport. GET retries, mutations and endpoint-specific pagination remain
+product-plugin responsibilities.
 
 ### Secrets
 
 | Operation | Signature | Purpose |
 | --- | --- | --- |
-| `EnsureReady` | `($ActionLabel, $ScreenTitle)` | Verify that Gerber secure credential storage is available. |
-| `Test` | `($PathSegmentList)` | Check whether a logical plugin-owned secret already exists without exposing storage details. |
-| `GetText` | `($PathSegmentList)` | Retrieve a logical secret as plain text for immediate in-memory use. |
-| `Set` | `($PathSegmentList, $Secret)` | Create or update a logical secret through Gerber's credential service. |
-| `Remove` | `($PathSegmentList)` | Remove a logical plugin-owned credential. |
+| `EnsureReady` | `($ActionLabel, $ScreenTitle)` | Verify secure storage availability. |
+| `Test` | `($PathSegmentList)` | Check a plugin-owned secret without retrieving it. |
+| `GetText` | `($PathSegmentList)` | Retrieve text for immediate in-memory use. |
+| `Set` | `($PathSegmentList, $Secret)` | Create or update the secret. |
+| `Remove` | `($PathSegmentList)` | Remove the plugin-owned secret. |
+
+Core maps logical paths to `gerber:plugin:<manifest-guid>:<path>`.
+AzureDevOps uses `@('ado', $ProfileName, 'pat')` under GUID
+`a468dee5-c7a0-43e4-ae88-bb19158fe679`. It does not automatically reuse, migrate
+or delete legacy `gerber:ado:<profile>:pat` credentials. A missing PAT is entered
+again at interactive authenticated use; metadata-only operations need no PAT.
+Never log, trace, display in errors or JSON-store retrieved values.
 
 ### Clipboard
 
 | Operation | Signature | Purpose |
 | --- | --- | --- |
-| `CopyText` | `($Value)` | Copy plugin output through Gerber's clipboard abstraction and fallback messaging. |
+| `CopyText` | `($Value)` | Copy through the platform clipboard abstraction and fallback messaging. |
 
-## Ownership notes
+## Ownership and lifecycle
 
-- **UI** stays in Core because Gerber owns terminal rendering, prompt behavior, escape semantics, tracing, and continue routing across built-in commands and plugins.
-- **Ado** stays in Core only for generic Azure DevOps infrastructure. Plugins receive an opaque connection handle rather than raw PAT values or the full Core configuration object.
-- **Secrets** stay in Core because secure credential storage and logical-name translation are shared infrastructure rather than organization-specific behavior. Core maps each path to `gerber:plugin:<manifest-guid>:<path>`, where the plugin identity is the PowerShell module manifest GUID.
-- **Clipboard** stays in Core because clipboard detection and fallback behavior are shared terminal infrastructure rather than plugin logic.
+Core owns command composition, UI, configuration placement/persistence,
+credential infrastructure, clipboard and plugin lifecycle. Plugins own product
+semantics. JSON and secret namespaces prevent accidental cross-plugin API
+access, not arbitrary PowerShell execution: this is a programming contract,
+not process isolation or a sandbox.
 
-Plugin credential names are logically separated to prevent accidental collisions and normal API access across plugins. This is not process isolation or a security sandbox: plugins execute as PowerShell code in the user's process.
+Module import does not register commands or imply Gerber approval. Discovery,
+GUID approval, association and enable/disable rules are unchanged. Declined
+and disabled plugins contribute no commands; non-ADO Core tools remain usable.
 
 ## Development-time boundary validation
 
-Installed Gerber exports a development command that does not start the host,
-require Nova, read user configuration, install the plugin or execute its source:
+The exported development command does not start Gerber, read user configuration,
+require Nova, install the target plugin or execute its source:
 
 ```powershell
 Import-Module Gerber
@@ -164,54 +143,42 @@ $result.Diagnostics | Format-Table File, Line, Dependency, Reason, Resolution -W
 if (-not $result.IsValid) { throw 'Fix plugin API boundary diagnostics.' }
 ```
 
-`PublicApi` is a machine-readable object with operation-name arrays for `UI`,
-`Ado`, `Secrets` and `Clipboard`, derived from the actual installed API v1
-context. It is an inventory, not a duplicate parameter-schema declaration;
-use the public reference above for operation signatures. Private ownership is
-derived from actual Core function definitions (including same-file siblings)
-minus module exports. There is no broad verb/prefix ban or hand-maintained list.
+`PublicApi` lists operation names for `Configuration`, `UI`, `Http`, `Secrets`
+and `Clipboard`, derived from the actual API context. It is not a parameter
+schema. Private ownership derives from actual Core definitions, including
+same-file siblings, minus exports; there is no broad prefix ban.
 
 ### Detection and diagnostics
 
-The validator parses `.ps1`, `.psm1` and `.psd1` files recursively under authored
-`src/` (including public/private subdirectories) and `scripts/`, and PowerShell
-entrypoints/manifests at the project root. It does not scan test fixtures,
-`dist/`, `artifacts/` or agent prose outside these authored roots.
-
-Each diagnostic contains project-relative slash-normalized `File`, one-based
-`Line` and `Column`, `Dependency`, `Reason` and actionable `Resolution`.
-Results sort by file, line, column, reason and dependency, removing duplicates.
-`IsValid` is false when diagnostics exist; `FileCount` records scanned files.
-Missing paths or `src/` directories terminate; PowerShell syntax errors become
-`ParseError` diagnostics. Source is never executed to determine a dependency.
+The validator parses authored `.ps1`, `.psm1` and `.psd1` under `src/`,
+`scripts/` and root entrypoints/manifests. It does not scan tests, `dist/`,
+`artifacts/` or agent prose outside authored roots.
+Diagnostics contain project-relative slash-normalized `File`, one-based `Line`
+and `Column`, `Dependency`, `Reason` and actionable `Resolution`. They sort
+deterministically and deduplicate. Missing project/source directories terminate;
+syntax errors become `ParseError` diagnostics. Source is never executed.
 
 | Case | Policy |
 | --- | --- |
-| Direct known private Core call; `& 'PrivateName'`; `Gerber\PrivateName` | `PrivateCoreCommand`; recommend an actual directly mapped public operation, otherwise explicitly say no equivalent is declared and request a capability. |
-| `& $name` after one prior unconditional literal assignment in the same scriptblock; literal string concatenation | Recognized conservatively; reassigned, conditional and computed variables are not resolved. |
-| Literal `Get-Command`/`gcm` lookup or `Invoke-Expression`/`iex` target | Identifiable private command names are reported, including literal expression commands with arguments. Explicit literal `-Module OtherModule` lookups respect external ownership; `-Module Gerber` retains Core ownership despite local same-name declarations. |
-| Explicit `Import-Module`/`ipmo`, dot-source or `using module` path under `Gerber/src/private`, `Gerber/private` or `Gerber/internal`; direct `Gerber/Gerber.psm1` import | `CoreImplementationImport`; use the public manifest and injected context, not implementation modules/files. |
-| `& (Get-Module Gerber) { ... }` or `(Get-Module Gerber).SessionState` | `CoreModuleScope`; use public capabilities rather than undocumented Core scope/state. Ordinary module inspection is allowed. |
-| Public context operations, Core exports, external commands/modules | Allowed. |
-| Plugin-owned functions across authored files and lexically local same-name functions | Allowed for unqualified calls; explicit Core qualification cannot be hidden by a local definition. |
-| Comments and ordinary strings mentioning private names/imports | Ignored, except recognized execution/lookup contexts above. |
+| Direct private call, literal call operator or `Gerber\PrivateName` | Report `PrivateCoreCommand` and a directly mapped public operation, or explicitly state that no equivalent exists. |
+| One prior unconditional literal assignment or literal string concatenation | Resolve conservatively; reassigned, conditional or computed variables remain unresolved. |
+| Literal `Get-Command`/`gcm` or `Invoke-Expression`/`iex` target | Report identifiable private names; explicit external module ownership is respected. |
+| Core-private source imports or direct Core implementation module import | Report `CoreImplementationImport`; use the public manifest and context. |
+| Core module-scope invocation or SessionState access | Report `CoreModuleScope`; ordinary module inspection remains allowed. |
+| Public operations, exports, external commands or plugin-owned functions | Allowed; explicit Core qualification cannot be hidden by local declarations. |
+| Ordinary strings and comments | Ignored except identifiable execution/lookup contexts. |
 
 ### Limits and lifecycle
 
-This is a static development guardrail, not a security scanner, permissions
-model or PowerShell sandbox. It does not follow aliases, execute expressions,
-resolve arbitrary variables/interprocedural dataflow, establish runtime load
-order, analyze external modules, or prove computed imports/commands safe.
-An unqualified known private name is treated as Core-owned unless a plugin/local
-function declares it. If an external public command has that same name, qualify
-its external module or use an explicit literal `Get-Command -Module` lookup;
-the validator does not load external modules to guess their exports.
-It does not police every possible configuration/state access; only explicit
-identifiable Core module scope/session-state access is diagnosed. Review those
-unresolved dependencies manually and request missing public capabilities.
+This static architecture guardrail is not a security scanner or permissions
+model. It does not execute aliases/expressions, resolve arbitrary dataflow,
+establish load order or prove computed imports safe. External same-name
+commands need explicit external qualification; unresolved dependencies require
+manual review and a public capability where needed.
+It diagnoses identifiable Core module scope/state access, not every possible
+configuration access.
 
-Generation checks staged authored source before Nova, plugin registration,
-finalization or GUID approval. Invalid generation uses existing owned-stage
-cleanup and never approves its GUID. Installed plugin discovery and execution,
-unknown/known GUID approvals, inventory, enable/disable and registration retain
-their existing contracts; validation is not a new runtime approval condition.
+Generation validates staged authored source before Nova execution, finalization
+and approval. Invalid generation uses existing owned-stage cleanup and never
+approves its GUID. Installed discovery, approvals, inventory and registration
+retain their existing contracts; this check is not a new runtime approval rule.
