@@ -35,9 +35,12 @@ jobs:
 
       - name: Validate repository changelog with Test-KeepAChangelogFile
         run: |
-          $result = Test-KeepAChangelogFile -Path ./CHANGELOG.md
-          if (-not $result.IsValid) {
-            throw ($result.Errors -join [Environment]::NewLine)
+          foreach ($path in @('./CHANGELOG.md', './RELEASE_NOTE.md')) {
+            $result = Test-KeepAChangelogFile -Path $path
+            if (-not $result.IsValid) {
+              $errors = $result.Errors -join [Environment]::NewLine
+              throw "Validation failed for $path$([Environment]::NewLine)$errors"
+            }
           }
 
       - name: Upload CI artifacts
