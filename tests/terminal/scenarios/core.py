@@ -300,10 +300,6 @@ def root_suggestions_are_alphabetical(context) -> None:
         "/help",
         "/plugins",
         "/update",
-        "/branch",
-        "/list",
-        "/pipelines",
-        "/repository",
         "/secrets",
         "/tools",
     ])
@@ -334,19 +330,19 @@ def suggestion_navigation_up_and_down(context) -> None:
 def preview_tracks_selected_suggestion(context) -> None:
     context.app.start()
     context.app.wait_for_prompt()
-    context.app.type("/repo")
-    context.app.expect_selected_suggestion("/repository")
-    context.app.expect_preview("Open the interactive repository menu")
+    context.app.type("/too")
+    context.app.expect_selected_suggestion("/tools")
+    context.app.expect_preview("Open the interactive tools menu")
 
 
 @scenario("selection-follows-editing", title="Selection follows editing", categories=("core", "suggestions", "editing"))
 def selection_follows_editing(context) -> None:
     context.app.start()
     context.app.wait_for_prompt()
-    context.app.type("/repot")
+    context.app.type("/toot")
     context.app.press("BACKSPACE")
-    context.app.expect_selected_suggestion("/repository")
-    context.app.expect_preview("Open the interactive repository menu")
+    context.app.expect_selected_suggestion("/tools")
+    context.app.expect_preview("Open the interactive tools menu")
 
 
 @scenario("selected-suggestion-preview-correspondence", title="Selected suggestion preview correspondence", categories=("core", "suggestions"))
@@ -435,14 +431,10 @@ def registered_command_discovery(context) -> None:
     title="Root menu dispatch contracts",
     categories=("core", "navigation", "rendering", "submission"),
     metadata=ScenarioMetadata(
-        commands=("tools", "list", "branch", "repository", "plugins", "pipelines", "secrets"),
+        commands=("tools", "plugins", "secrets"),
         workflows=(
             "command:tools",
-            "command:list",
-            "command:branch",
-            "command:repository",
             "command:plugins",
-            "command:pipelines",
             "command:secrets",
         ),
         coverage=("dispatch", "workflow", "navigation", "rendering"),

@@ -76,6 +76,9 @@ function Add-GerberTerminalInventoryItem {
             description = $Context.Description
             interactive = $true
             hasSubcommands = $Context.Subcommands.Count -gt 0
+            conditionalContainer = $null -ne $definition -and
+                $definition.OwnerType -eq 'Core' -and
+                $null -ne $definition.PSObject.Properties['IsContainer'] -and $definition.IsContainer
             workflowIdentifiers = @("command:$($Context.Path)")
             externalDependencies = @()
             safeForUnattendedTesting = $false

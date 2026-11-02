@@ -24,7 +24,7 @@ function Copy-GerberRegistryWithoutPlugin {
     $stagedState = Copy-GerberCommandRegistryState -State $State
     $remainingCommands = Select-GerberPluginCommandRemainder -State $stagedState -Plugin $Plugin
     return [pscustomobject][ordered]@{
-        CommandList   = $remainingCommands
+        CommandList   = @(Select-GerberActiveCommandDefinitionList -Commands $remainingCommands)
         PluginList    = @($State.PluginList | Where-Object { $_.Guid -ine $Plugin.Guid })
         GerberVersion = $State.GerberVersion
     }
@@ -54,26 +54,5 @@ function Clear-GerberPluginCommandAttachmentList {
 
     foreach ($ownedCommand in $OwnedCommandList) {
         Clear-GerberPluginSubcommandEntry -CommandList $CommandList -OwnedCommand $ownedCommand
-    }
-}
-
-function Clear-GerberPluginSubcommandEntry {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [AllowEmptyCollection()]
-        [object[]]$CommandList,
-
-        [Parameter(Mandatory)]
-        [pscustomobject]$OwnedCommand
-    )
-
-    if (-not $OwnedCommand.ParentName) {
-        return
-    }
-
-    $parentCommand = $CommandList | Where-Object { $_.Name -ieq $OwnedCommand.ParentName } | Select-Object -First 1
-    if ($null -ne $parentCommand) {
-        $parentCommand.Subcommands.Remove($OwnedCommand.LeafName)
     }
 }

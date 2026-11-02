@@ -4,7 +4,7 @@ external help file: Gerber-Help.xml
 HelpUri: ''
 Locale: en-US
 Module Name: Gerber
-ms.date: 11.01.2026
+ms.date: 11.02.2026
 PlatyPS schema version: 2024-05-01
 title: Invoke-Gerber
 ---
@@ -57,7 +57,7 @@ reports/export, REST, retry and pagination, repositories, branches and pipelines
 Shared Enter, Escape and continue routing remain unchanged. Inactive plugins
 contribute no commands; unrelated Core tools and secret management remain usable.
 Press `Esc` from an interactive prompt or continue screen to return to the main Gerber menu.
-Core retains the shared `/branch`, `/list`, `/pipelines` and `/repository` roots for active plugin contributions; Core tools, `/plugins`, `/update` and `/secrets` remain platform-owned.
+Shared `/branch`, `/list`, `/pipelines` and `/repository` roots appear only while active plugins contribute available actions. Empty intermediate submenus disappear too. Several plugins may share a root; disabling one preserves the others, while disabling the last hides the empty menu. Menus, completion, help and direct command lookup use the same active command tree. Standalone Core tools, `/plugins`, `/update` and `/secrets` remain available without product plugins.
 
 `/plugins enable` lists installed inactive plugins, including previously declined or approved-but-disabled plugins. Selecting a plugin counts as explicit approval without an additional approval prompt. `/plugins disable` removes an active plugin's commands while preserving its approval and leaving its PowerShell module installed. Both actions update menus, completion, and dispatch immediately without restarting Gerber.
 

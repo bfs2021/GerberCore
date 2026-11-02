@@ -3,7 +3,7 @@ BeforeAll {
     Import-GerberSource -StartPath $PSScriptRoot
 }
 
-Describe 'Invoke-GerberRegisteredCommand' {
+Describe 'Invoke-GerberRegisteredCommand' -Tag 'ActiveCommandTree' {
     BeforeEach {
         $script:receivedCoreCommand = $null
         $script:coreHandlerExtraArgumentCount = $null
@@ -11,20 +11,12 @@ Describe 'Invoke-GerberRegisteredCommand' {
 
     It 'invokes the registered interactive root handlers and returns false' -ForEach @(
         @{ Name = 'tools'; MockTarget = 'Show-GerberToolsView' }
-        @{ Name = 'list'; MockTarget = 'Show-GerberListView' }
-        @{ Name = 'branch'; MockTarget = 'Show-GerberBranchView' }
-        @{ Name = 'repository'; MockTarget = 'Show-GerberRepositoryView' }
-        @{ Name = 'pipelines'; MockTarget = 'Show-GerberPipelinesView' }
         @{ Name = 'secrets'; MockTarget = 'Show-GerberSecretsView' }
         @{ Name = 'help'; MockTarget = 'Show-GerberHelpView' }
     ) {
         param($Name, $MockTarget)
 
         Mock Show-GerberToolsView {}
-        Mock Show-GerberListView {}
-        Mock Show-GerberBranchView {}
-        Mock Show-GerberRepositoryView {}
-        Mock Show-GerberPipelinesView {}
         Mock Show-GerberSecretsView {}
         Mock Show-GerberHelpView {}
 
@@ -34,6 +26,15 @@ Describe 'Invoke-GerberRegisteredCommand' {
 
         $result | Should -BeFalse
         Should -Invoke $MockTarget -Times 1
+    }
+
+    It 'dispatches a conditional shared container through generic navigation instead of its obsolete handler' {
+        Mock Show-GerberRegisteredSubcommandMenu { $true }
+        $definition = [pscustomobject]@{ Name = 'generic nested'; IsContainer = $true; Handler = { throw 'Obsolete handler' } }
+        Invoke-GerberRegisteredCommand -CommandDefinition $definition -Command ([pscustomobject]@{ Arguments = @() }) | Should -BeTrue
+        Should -Invoke Show-GerberRegisteredSubcommandMenu -Times 1 -ParameterFilter {
+            $CommandName -eq 'generic nested' -and $AutoSelectFirstSuggestionOnSubmit -and $PropagateExit
+        }
     }
 
     It 'invokes the registered exit handler and returns true' {

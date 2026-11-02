@@ -2,7 +2,14 @@ function Show-GerberHelpView {
     [CmdletBinding()]
     param()
 
-    $helpText = @(
+    Show-GerberTextBlock -Title '/help' -Text (ConvertTo-GerberHelpText)
+    Wait-GerberContinue
+}
+
+function ConvertTo-GerberHelpText {
+    param()
+
+    return @(
         'Commands'
         (Get-GerberHelpRootCommandLineList)
         (Get-GerberHelpNestedCommandLineList)
@@ -11,9 +18,6 @@ function Show-GerberHelpView {
         '  Type / to see the available commands'
         '  Type /to and press Tab to expand to /tools'
         '  Type /tools to preview the available tools'
-        '  Type /list to preview the available reports'
-        '  Type /pipelines to preview the available release flows'
-        '  Type /pipelines tags to preview the available pipeline tag actions'
         '  Type /secrets to preview the available secrets actions'
         '  Use Up/Down to browse suggestions'
         '  Press Tab to apply the selected suggestion'
@@ -23,8 +27,6 @@ function Show-GerberHelpView {
         (Get-GerberHelpLeafActionExampleLineList)
     ) -join [Environment]::NewLine
 
-    Show-GerberTextBlock -Title '/help' -Text $helpText
-    Wait-GerberContinue
 }
 
 function Get-GerberHelpRootCommandLineList {

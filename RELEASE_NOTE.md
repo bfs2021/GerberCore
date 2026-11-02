@@ -22,6 +22,9 @@
 
 ### Fixed
 
+- Empty product menus no longer appear. Shared roots and nested menus remain
+  available while any active plugin contributes an action, and update
+  immediately after enable/disable across menus, completion and help.
 - Unreadable module-search paths no longer prevent plugin discovery or
   `/update list` from completing.
 - Unsupported Core installation layouts now get supported numeric-version

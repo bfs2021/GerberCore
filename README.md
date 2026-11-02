@@ -121,6 +121,14 @@ Type `/` to reveal the available root commands, or start typing plain text direc
 
 Root commands and completion suggestions show `/exit`, `/help`, `/plugins`, and `/update` first, in that order, followed by all remaining Core and active plugin root commands alphabetically. Submenu ordering is unchanged.
 
+Menu-only roots and nested submenus appear only while they contain available
+actions. `/branch`, `/list`, `/pipelines` and `/repository` are therefore absent
+when no active plugin contributes beneath them. Several plugins can share a
+root: disabling one removes only its contribution, and disabling the last
+removes the empty menu. Enabling a contributor restores its commands immediately.
+Menus, completion, help and direct command lookup use the same active tree;
+standalone Core actions remain available without plugin contributions.
+
 | Command | Purpose |
 | --- | --- |
 | `/exit` | Exit the interactive session cleanly |
@@ -154,9 +162,9 @@ Autocomplete is available directly in the slash-command prompt:
 - press `Esc` from an interactive prompt or continue screen to go back one Gerber menu level at a time; backing out of a top-level submenu returns to the visible root `/` chooser before the blank home prompt
 - press `Esc` twice within 200 ms from shared Gerber prompts, menus, and continue screens to return directly to the root prompt without exiting Gerber
 - type `/tools` to preview `create-uuid`, `base-64` and `/tools base-64` previews `encode` and `decode`
-- type `/list` to preview `ado-agents` and `ado-team-members`, plus any installed plugin-provided list actions
+- with AzureDevOps active, type `/list` to preview `ado-agents` and `ado-team-members`, plus any other active plugin-provided list actions
 - with AzureDevOps active, type `/pipelines` to preview `tags delete` and `tags update`
-- type `/branch` to preview `find` and `set-searchable`
+- with AzureDevOps active, type `/branch` to preview `find` and `set-searchable`
 - with AzureDevOps active, type `/repository` to preview `create`
 - type `/plugins` to preview `create`, `disable`, `enable`, `info` and `list`
 - type `/secrets` to preview `list`, `get`, `test`, `set`, and `remove`
@@ -280,9 +288,10 @@ The active **Gerber.AzureDevOps** plugin contributes this report under `/list`:
 
 ### `/pipelines`
 
-Gerber Core owns the generic `/pipelines` root. Gerber.AzureDevOps contributes
-the tag-maintenance commands only when approved and enabled. Additional plugins
-may contribute workflows beneath the same root.
+`/pipelines` is available while an active plugin contributes a pipeline action.
+Gerber.AzureDevOps contributes tag-maintenance commands only when approved and
+enabled. Additional plugins may share the root; empty intermediate menus such
+as `/pipelines tags` disappear when their last available action is removed.
 
 ### `/pipelines tags delete`
 
@@ -306,8 +315,9 @@ The active **Gerber.AzureDevOps** plugin contributes this flow under `/pipelines
 
 ### Shared product roots
 
-Core retains `/branch`, `/list`, `/repository` and `/pipelines` for plugin
-contributions. AzureDevOps owns `/repository create`, `/branch find`,
+Gerber composes `/branch`, `/list`, `/repository` and `/pipelines` from available
+plugin contributions instead of exposing empty historical Core menus.
+AzureDevOps owns `/repository create`, `/branch find`,
 `/branch set-searchable` and `/branch set-default`, alongside the reports and
 tag flows above. Their placement, arguments and navigation remain unchanged;
 they are not relocated under `/ado`. Other plugins own and qualify their own

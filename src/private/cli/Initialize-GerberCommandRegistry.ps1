@@ -5,13 +5,19 @@ function Initialize-GerberCommandRegistry {
         [string[]]$PluginModulePathList = (Get-GerberDefaultPluginModulePathList)
     )
 
-    $existingRegistryState = Get-Variable `
-        -Name 'GerberCommandRegistryState' `
-        -Scope Script `
-        -ErrorAction SilentlyContinue
-    if ($null -ne $existingRegistryState -and $null -ne $existingRegistryState.Value) {
-        return @(Get-GerberRootCommandDefinitionList -CommandDefinitionList $existingRegistryState.Value.CommandList)
+    $existingRegistryState = Get-GerberRegisteredCommandRegistryState
+    if ($null -ne $existingRegistryState) {
+        return @(Get-GerberRootCommandDefinitionList -CommandDefinitionList $existingRegistryState.CommandList)
     }
+
+    $registryBuilder = ConvertTo-GerberCoreRegistryBuilder
+    Add-GerberDiscoveredPluginRegistration -RegistryBuilder $registryBuilder -PluginModulePathList $PluginModulePathList
+    Publish-GerberCommandRegistryState -RegistryBuilder $registryBuilder
+    return @(Get-GerberRootCommandDefinitionList -CommandDefinitionList $script:GerberCommandRegistryState.CommandList)
+}
+
+function ConvertTo-GerberCoreRegistryBuilder {
+    param()
 
     $registryBuilder = [pscustomobject][ordered]@{
         CommandList   = New-Object 'System.Collections.Generic.List[object]'
@@ -25,25 +31,33 @@ function Initialize-GerberCommandRegistry {
         -OwnerName 'Gerber.Core' `
         -OwnerType 'Core'
 
+    return $registryBuilder
+}
+
+function Add-GerberDiscoveredPluginRegistration {
+    param(
+        [pscustomobject]$RegistryBuilder,
+        [string[]]$PluginModulePathList
+    )
+
     foreach ($pluginModule in (Get-GerberDiscoveredPluginModuleList -PluginModulePathList $PluginModulePathList)) {
-        if (-not (Resolve-GerberPluginApproval -PluginModule $pluginModule)) {
-            continue
-        }
-
-        $lifecycleState = Get-GerberPluginLifecycleState -Guid $pluginModule.Guid
-        if (-not $lifecycleState.ShouldLoad) {
-            continue
-        }
-
-        Add-GerberPluginToRegistryBuilder `
-            -RegistryBuilder $registryBuilder `
-            -PluginModule $pluginModule `
-            -LifecycleState $lifecycleState
+        Add-GerberApprovedPluginRegistration -RegistryBuilder $RegistryBuilder -PluginModule $pluginModule
     }
+}
 
-    Publish-GerberCommandRegistryState -RegistryBuilder $registryBuilder
+function Add-GerberApprovedPluginRegistration {
+    param(
+        [pscustomobject]$RegistryBuilder,
+        [pscustomobject]$PluginModule
+    )
 
-    return @(Get-GerberRootCommandDefinitionList -CommandDefinitionList $script:GerberCommandRegistryState.CommandList)
+    if (-not (Resolve-GerberPluginApproval -PluginModule $PluginModule)) {
+        return
+    }
+    $lifecycleState = Get-GerberPluginLifecycleState -Guid $PluginModule.Guid
+    if ($lifecycleState.ShouldLoad) {
+        Add-GerberPluginToRegistryBuilder -RegistryBuilder $RegistryBuilder -PluginModule $PluginModule -LifecycleState $lifecycleState
+    }
 }
 
 function Get-GerberDefaultPluginModulePathList {
@@ -84,19 +98,24 @@ function Get-GerberLoadedCommandVersion {
     param()
 
     $command = Get-Command -Name 'Invoke-Gerber' -CommandType Function -ErrorAction SilentlyContinue
-    if ($null -eq $command) {
+    $commandModule = Resolve-GerberLoadedCommandModule -Command $command
+    if ($null -eq $commandModule -or $null -eq $commandModule.Version) {
         return $null
     }
 
-    if ($null -eq $command.Module) {
+    return [System.Management.Automation.SemanticVersion]::Parse($commandModule.Version.ToString())
+}
+
+function Resolve-GerberLoadedCommandModule {
+    param(
+        [AllowNull()]
+        [object]$Command
+    )
+
+    if ($null -eq $Command) {
         return $null
     }
-
-    if ($null -eq $command.Module.Version) {
-        return $null
-    }
-
-    return [System.Management.Automation.SemanticVersion]::Parse($command.Module.Version.ToString())
+    return $Command.Module
 }
 
 function Get-GerberProjectVersionFromRepositoryRoot {
@@ -122,25 +141,41 @@ function Get-GerberDiscoveredPluginModuleList {
         [string[]]$PluginModulePathList
     )
 
-    $pluginModuleList = @(
+    $pluginModuleList = @(Read-GerberValidatedPluginManifest -PluginModulePathList $PluginModulePathList)
+    $selectedModuleList = @(Select-GerberLatestPluginManifest -PluginModuleList $pluginModuleList)
+    return @(
+        $selectedModuleList |
+            Sort-Object @{ Expression = { $_.Name.ToLowerInvariant() } }, @{ Expression = { [version]$_.Version }; Descending = $true }
+    )
+}
+
+function Read-GerberValidatedPluginManifest {
+    param(
+        [string[]]$PluginModulePathList
+    )
+
+    return @(
         foreach ($moduleInfo in (Get-GerberPluginManifestMetadataList -PluginModulePathList $PluginModulePathList)) {
             Assert-GerberPluginModuleManifest -ModuleInfo $moduleInfo
             $moduleInfo
         }
     )
 
-    $selectedModuleList = @(
-        foreach ($group in ($pluginModuleList | Group-Object Name)) {
+}
+
+function Select-GerberLatestPluginManifest {
+    param(
+        [object[]]$PluginModuleList
+    )
+
+    return @(
+        foreach ($group in ($PluginModuleList | Group-Object Name)) {
             $group.Group |
                 Sort-Object @{ Expression = { [version]$_.Version }; Descending = $true } |
                 Select-Object -First 1
         }
     )
 
-    return @(
-        $selectedModuleList |
-            Sort-Object @{ Expression = { $_.Name.ToLowerInvariant() } }, @{ Expression = { [version]$_.Version }; Descending = $true }
-    )
 }
 
 function Assert-GerberPluginModuleManifest {
@@ -151,23 +186,38 @@ function Assert-GerberPluginModuleManifest {
     )
 
     $gerberMetadata = Get-GerberModulePrivateDataValueOrNull -InputObject $ModuleInfo.PrivateData -Name 'Gerber'
-    if ([string]::IsNullOrWhiteSpace([string]$gerberMetadata.ApiVersion)) {
+    Assert-GerberRequiredPluginMetadataField -ModuleInfo $ModuleInfo -Metadata $gerberMetadata -Name 'ApiVersion'
+    Assert-GerberSupportedPluginApi -ModuleInfo $ModuleInfo -Metadata $gerberMetadata
+    Assert-GerberRequiredPluginMetadataField -ModuleInfo $ModuleInfo -Metadata $gerberMetadata -Name 'MinimumGerberVersion'
+}
+
+function Assert-GerberRequiredPluginMetadataField {
+    param(
+        [psobject]$ModuleInfo,
+        [object]$Metadata,
+        [string]$Name
+    )
+
+    if ([string]::IsNullOrWhiteSpace([string]$Metadata.$Name)) {
         throw [System.InvalidOperationException]::new(
-            "Gerber plugin '$($ModuleInfo.Name)' is missing required manifest metadata 'PrivateData.Gerber.ApiVersion'."
+            "Gerber plugin '$($ModuleInfo.Name)' is missing required manifest metadata 'PrivateData.Gerber.$Name'."
         )
     }
 
-    if ([string]$gerberMetadata.ApiVersion -ne '1') {
+}
+
+function Assert-GerberSupportedPluginApi {
+    param(
+        [psobject]$ModuleInfo,
+        [object]$Metadata
+    )
+
+    if ([string]$Metadata.ApiVersion -ne '1') {
         throw [System.InvalidOperationException]::new(
-            "Gerber plugin '$($ModuleInfo.Name)' requires plugin API version '$([string]$gerberMetadata.ApiVersion)', but Gerber supports plugin API version '1'."
+            "Gerber plugin '$($ModuleInfo.Name)' requires plugin API version '$([string]$Metadata.ApiVersion)', but Gerber supports plugin API version '1'."
         )
     }
 
-    if ([string]::IsNullOrWhiteSpace([string]$gerberMetadata.MinimumGerberVersion)) {
-        throw [System.InvalidOperationException]::new(
-            "Gerber plugin '$($ModuleInfo.Name)' is missing required manifest metadata 'PrivateData.Gerber.MinimumGerberVersion'."
-        )
-    }
 }
 
 function Get-GerberModulePrivateDataValueOrNull {
@@ -185,13 +235,38 @@ function Get-GerberModulePrivateDataValueOrNull {
         return $null
     }
 
-    if ($InputObject -is [System.Collections.IDictionary]) {
-        if ($InputObject.Contains($Name)) {
-            return $InputObject[$Name]
-        }
+    return Read-GerberManifestProperty -InputObject $InputObject -Name $Name
+}
 
-        return $null
+function Read-GerberManifestProperty {
+    param(
+        [object]$InputObject,
+        [string]$Name
+    )
+
+    if ($InputObject -is [System.Collections.IDictionary]) {
+        return Read-GerberManifestDictionaryValue -InputObject $InputObject -Name $Name
     }
+    return Read-GerberManifestObjectProperty -InputObject $InputObject -Name $Name
+}
+
+function Read-GerberManifestDictionaryValue {
+    param(
+        [System.Collections.IDictionary]$InputObject,
+        [string]$Name
+    )
+
+    if ($InputObject.Contains($Name)) {
+        return $InputObject[$Name]
+    }
+    return $null
+}
+
+function Read-GerberManifestObjectProperty {
+    param(
+        [object]$InputObject,
+        [string]$Name
+    )
 
     $property = $InputObject.PSObject.Properties[$Name]
     if ($null -eq $property) {
@@ -220,25 +295,47 @@ function Add-GerberOwnedCommandDefinitionList {
         [string]$OwnerType
     )
 
+    # Bound fields retain collection, owner-name and owner-type validation.
+    Complete-GerberOwnedCommandRegistration -Contribution ([pscustomobject]$PSBoundParameters)
+}
+
+function Complete-GerberOwnedCommandRegistration {
+    param(
+        [pscustomobject]$Contribution
+    )
+
+    $ownedCommandList = @(ConvertTo-GerberContributionCommandList -Contribution $Contribution)
+    Add-GerberCommandContainerAncestor -Commands $Contribution.RegisteredCommandList -Definitions $ownedCommandList
+    Assert-GerberOwnedCommandDefinitionList -OwnedCommandDefinitionList $ownedCommandList -RegisteredCommandList $Contribution.RegisteredCommandList
+    Add-GerberOrderedCommandRegistration -RegisteredCommandList $Contribution.RegisteredCommandList -OwnedCommandDefinitionList $ownedCommandList
+}
+
+function ConvertTo-GerberContributionCommandList {
+    param(
+        [pscustomobject]$Contribution
+    )
+
     $ownedCommandList = @()
-    $registrationOrder = $RegisteredCommandList.Count
-    foreach ($commandDefinition in $CommandDefinitionList) {
+    for ($index = 0; $index -lt $Contribution.CommandDefinitionList.Count; $index++) {
         $ownedCommand = ConvertTo-GerberOwnedCommandDefinition `
-                -CommandDefinition $commandDefinition `
-                -OwnerName $OwnerName `
-                -OwnerType $OwnerType
-        $ownedCommand | Add-Member -NotePropertyName RegistrationOrder -NotePropertyValue $registrationOrder
+            -CommandDefinition $Contribution.CommandDefinitionList[$index] `
+            -OwnerName $Contribution.OwnerName `
+            -OwnerType $Contribution.OwnerType
+        $ownedCommand | Add-Member -NotePropertyName RegistrationOrder -NotePropertyValue ($Contribution.RegisteredCommandList.Count + $index)
         $ownedCommandList += $ownedCommand
-        $registrationOrder++
     }
+    return $ownedCommandList
+}
 
-    Assert-GerberOwnedCommandDefinitionList -OwnedCommandDefinitionList $ownedCommandList -RegisteredCommandList $RegisteredCommandList
+function Add-GerberOrderedCommandRegistration {
+    param(
+        [System.Collections.Generic.List[object]]$RegisteredCommandList,
+        [object[]]$OwnedCommandDefinitionList
+    )
 
-    foreach ($ownedCommand in (Get-GerberOrderedOwnedCommandDefinitionList -OwnedCommandDefinitionList $ownedCommandList)) {
+    foreach ($ownedCommand in (Get-GerberOrderedOwnedCommandDefinitionList -OwnedCommandDefinitionList $OwnedCommandDefinitionList)) {
         if ($ownedCommand.ParentName) {
-            Add-GerberOwnedSubcommandDefinition `
-                -RegisteredCommandList $RegisteredCommandList `
-                -OwnedCommandDefinition $ownedCommand
+            Add-GerberOwnedSubcommandDefinition -RegisteredCommandList $RegisteredCommandList -OwnedCommandDefinition $ownedCommand
         }
 
         $null = $RegisteredCommandList.Add($ownedCommand)
@@ -262,19 +359,49 @@ function ConvertTo-GerberOwnedCommandDefinition {
 
     Assert-GerberCommandDefinition -CommandDefinition $CommandDefinition -OwnerName $OwnerName
 
-    $commandName = Resolve-GerberCommandName -CommandName ([string]$CommandDefinition.Name)
-    $ownedCommandDefinition = [pscustomobject][ordered]@{
-        Name        = $commandName
+    return ConvertTo-GerberOwnedRegistrationDefinition @PSBoundParameters
+}
+
+function ConvertTo-GerberOwnedRegistrationDefinition {
+    [CmdletBinding()]
+    param(
+        [pscustomobject]$CommandDefinition,
+        [string]$OwnerName,
+        [string]$OwnerType
+    )
+
+    $ownedCommandDefinition = Copy-GerberCommandDefinitionPayload -CommandDefinition $CommandDefinition
+    Add-GerberCommandOwnership -Definition $ownedCommandDefinition -OwnerName $OwnerName -OwnerType $OwnerType
+    $ownedCommandDefinition | Add-Member -NotePropertyName IsContainer -NotePropertyValue (Test-GerberCommandContainer -Definition $CommandDefinition)
+    return $ownedCommandDefinition
+}
+
+function Copy-GerberCommandDefinitionPayload {
+    param(
+        [pscustomobject]$CommandDefinition
+    )
+
+    return [pscustomobject][ordered]@{
+        Name        = Resolve-GerberCommandName -CommandName ([string]$CommandDefinition.Name)
         Description = [string]$CommandDefinition.Description
         Handler     = $CommandDefinition.Handler
         Subcommands = Get-GerberCommandDefinitionSubcommandTable -Subcommands $CommandDefinition.Subcommands
+    }
+}
+
+function Add-GerberCommandOwnership {
+    param(
+        [pscustomobject]$Definition,
+        [string]$OwnerName,
+        [string]$OwnerType
+    )
+
+    $Definition | Add-Member -NotePropertyMembers ([ordered]@{
         OwnerName   = $OwnerName
         OwnerType   = $OwnerType
-        ParentName  = Get-GerberParentCommandName -CommandName $commandName
-        LeafName    = Get-GerberCommandLeafName -CommandName $commandName
-    }
-
-    return $ownedCommandDefinition
+        ParentName  = Get-GerberParentCommandName -CommandName $Definition.Name
+        LeafName    = Get-GerberCommandLeafName -CommandName $Definition.Name
+    })
 }
 
 function Assert-GerberCommandDefinition {
@@ -287,23 +414,60 @@ function Assert-GerberCommandDefinition {
         [string]$OwnerName
     )
 
-    if ([string]::IsNullOrWhiteSpace([string]$CommandDefinition.Name)) {
+    Assert-GerberCommandDefinitionIdentity @PSBoundParameters
+    Assert-GerberCommandDefinitionHandler @PSBoundParameters
+    Assert-GerberCommandDefinitionSubcommandTable @PSBoundParameters
+}
+
+function Assert-GerberCommandDefinitionIdentity {
+    [CmdletBinding()]
+    param(
+        [pscustomobject]$CommandDefinition,
+        [string]$OwnerName
+    )
+
+    Assert-GerberCommandDefinitionText -Value $CommandDefinition.Name `
+        -Message "Gerber plugin '$OwnerName' returned an invalid command definition because 'Name' was missing."
+    Assert-GerberCommandDefinitionText -Value $CommandDefinition.Description `
+        -Message "Gerber plugin '$OwnerName' returned an invalid command definition for root command '$([string]$CommandDefinition.Name)' because 'Description' was missing."
+}
+
+function Assert-GerberCommandDefinitionText {
+    param(
+        [AllowNull()]
+        [object]$Value,
+        [string]$Message
+    )
+
+    if ([string]::IsNullOrWhiteSpace([string]$Value)) {
         throw [System.InvalidOperationException]::new(
-            "Gerber plugin '$OwnerName' returned an invalid command definition because 'Name' was missing."
+            $Message
         )
     }
 
-    if ([string]::IsNullOrWhiteSpace([string]$CommandDefinition.Description)) {
-        throw [System.InvalidOperationException]::new(
-            "Gerber plugin '$OwnerName' returned an invalid command definition for root command '$([string]$CommandDefinition.Name)' because 'Description' was missing."
-        )
-    }
+}
+
+function Assert-GerberCommandDefinitionHandler {
+    [CmdletBinding()]
+    param(
+        [pscustomobject]$CommandDefinition,
+        [string]$OwnerName
+    )
 
     if ($CommandDefinition.Handler -isnot [scriptblock]) {
         throw [System.InvalidOperationException]::new(
             "Gerber plugin '$OwnerName' returned an invalid command definition for root command '$([string]$CommandDefinition.Name)' because 'Handler' was not a scriptblock."
         )
     }
+
+}
+
+function Assert-GerberCommandDefinitionSubcommandTable {
+    [CmdletBinding()]
+    param(
+        [pscustomobject]$CommandDefinition,
+        [string]$OwnerName
+    )
 
     if (($null -ne $CommandDefinition.Subcommands) -and ($CommandDefinition.Subcommands -isnot [System.Collections.IDictionary])) {
         throw [System.InvalidOperationException]::new(
@@ -325,26 +489,37 @@ function Assert-GerberOwnedCommandDefinitionList {
         [System.Collections.Generic.List[object]]$RegisteredCommandList
     )
 
+    Assert-GerberCommandContributionRegistration @PSBoundParameters
+}
+
+function Assert-GerberCommandContributionRegistration {
+    [CmdletBinding()]
+    param(
+        [object[]]$OwnedCommandDefinitionList,
+        [System.Collections.Generic.List[object]]$RegisteredCommandList
+    )
+
     Assert-GerberOwnerCommandNamesAreUnique -OwnedCommandDefinitionList $OwnedCommandDefinitionList
-
     foreach ($ownedCommand in $OwnedCommandDefinitionList) {
-        $existingCommand = Find-GerberRegisteredCommandConflict `
-            -RegisteredCommandList $RegisteredCommandList `
-            -CommandName $ownedCommand.Name
-        if ($null -eq $existingCommand) {
-            Assert-GerberOwnedCommandParentDefinition `
-                -RegisteredCommandList $RegisteredCommandList `
-                -OwnedCommandDefinitionList $OwnedCommandDefinitionList `
-                -OwnedCommandDefinition $ownedCommand
-            Assert-GerberOwnedSubcommandConflict `
-                -RegisteredCommandList $RegisteredCommandList `
-                -OwnedCommandDefinitionList $OwnedCommandDefinitionList `
-                -OwnedCommandDefinition $ownedCommand
-            continue
-        }
-
-        throw (Get-GerberRegisteredCommandConflictException -OwnedCommandDefinition $ownedCommand -ExistingCommandDefinition $existingCommand)
+        Assert-GerberContributedCommandRegistration -RegisteredCommandList $RegisteredCommandList `
+            -OwnedCommandDefinitionList $OwnedCommandDefinitionList -OwnedCommandDefinition $ownedCommand
     }
+}
+
+function Assert-GerberContributedCommandRegistration {
+    [CmdletBinding()]
+    param(
+        [System.Collections.Generic.List[object]]$RegisteredCommandList,
+        [object[]]$OwnedCommandDefinitionList,
+        [pscustomobject]$OwnedCommandDefinition
+    )
+
+    $existingCommand = Find-GerberRegisteredCommandConflict -RegisteredCommandList $RegisteredCommandList -CommandName $OwnedCommandDefinition.Name
+    if ($null -ne $existingCommand) {
+        throw (Get-GerberRegisteredCommandConflictException -OwnedCommandDefinition $OwnedCommandDefinition -ExistingCommandDefinition $existingCommand)
+    }
+    Assert-GerberOwnedCommandParentDefinition @PSBoundParameters
+    Assert-GerberOwnedSubcommandConflict @PSBoundParameters
 }
 
 function Assert-GerberOwnerCommandNamesAreUnique {
@@ -360,12 +535,20 @@ function Assert-GerberOwnerCommandNamesAreUnique {
             continue
         }
 
-        $ownedCommand = $group.Group[0]
-        $commandKind = if ($ownedCommand.ParentName) { 'command' } else { 'root command' }
-        throw [System.InvalidOperationException]::new(
-            "Gerber cannot register duplicate $commandKind '$($group.Name)' from owner '$($ownedCommand.OwnerName)'."
-        )
+        throw (ConvertTo-GerberDuplicateOwnerCommandException -Group $group)
     }
+}
+
+function ConvertTo-GerberDuplicateOwnerCommandException {
+    param(
+        [psobject]$Group
+    )
+
+    $ownedCommand = $Group.Group[0]
+    $commandKind = if ($ownedCommand.ParentName) { 'command' } else { 'root command' }
+    return [System.InvalidOperationException]::new(
+        "Gerber cannot register duplicate $commandKind '$($Group.Name)' from owner '$($ownedCommand.OwnerName)'."
+    )
 }
 
 function Find-GerberRegisteredCommandConflict {
@@ -380,13 +563,9 @@ function Find-GerberRegisteredCommandConflict {
         [string]$CommandName
     )
 
-    foreach ($registeredCommand in $RegisteredCommandList) {
-        if ($registeredCommand.Name -ieq $CommandName) {
-            return $registeredCommand
-        }
-    }
-
-    return $null
+    return ($RegisteredCommandList |
+        Where-Object { $_.Name -ieq $CommandName } |
+        Select-Object -First 1)
 }
 
 function Get-GerberRootCommandDefinitionList {
@@ -398,13 +577,7 @@ function Get-GerberRootCommandDefinitionList {
         [object[]]$CommandDefinitionList
     )
 
-    return @(
-        foreach ($commandDefinition in $CommandDefinitionList) {
-            if (-not $commandDefinition.ParentName) {
-                $commandDefinition
-            }
-        }
-    )
+    return @($CommandDefinitionList | Where-Object { -not $_.ParentName })
 }
 
 function Resolve-GerberCommandName {
@@ -559,37 +732,77 @@ function Assert-GerberOwnedSubcommandConflict {
         [pscustomobject]$OwnedCommandDefinition
     )
 
-    if (-not $OwnedCommandDefinition.ParentName) {
+    Assert-GerberSubcommandContributionAvailability -Contribution ([pscustomobject]$PSBoundParameters)
+}
+
+function Assert-GerberSubcommandContributionAvailability {
+    param(
+        [pscustomobject]$Contribution
+    )
+
+    $command = $Contribution.OwnedCommandDefinition
+    if (-not $command.ParentName) {
         return
     }
-
-    $parentCommand = Find-GerberRegisteredCommandConflict `
-        -RegisteredCommandList $RegisteredCommandList `
-        -CommandName $OwnedCommandDefinition.ParentName
-    if ($null -eq $parentCommand) {
-        foreach ($candidateCommand in $OwnedCommandDefinitionList) {
-            if ($candidateCommand.Name -ieq $OwnedCommandDefinition.ParentName) {
-                $parentCommand = $candidateCommand
-                break
-            }
-        }
+    $parentCommand = Find-GerberSubcommandContributionParent -RegisteredCommandList $Contribution.RegisteredCommandList `
+        -OwnedCommandDefinitionList $Contribution.OwnedCommandDefinitionList -OwnedCommandDefinition $command
+    if (Test-GerberSubcommandContributionConflict -Parent $parentCommand `
+            -Definitions $Contribution.OwnedCommandDefinitionList -Command $command) {
+        throw (ConvertTo-GerberSubcommandOwnershipException -Parent $parentCommand -Command $command)
     }
+}
 
-    if (($null -eq $parentCommand) -or (-not $parentCommand.Subcommands.Contains($OwnedCommandDefinition.LeafName))) {
-        return
+function Find-GerberSubcommandContributionParent {
+    [CmdletBinding()]
+    param(
+        [System.Collections.Generic.List[object]]$RegisteredCommandList,
+        [object[]]$OwnedCommandDefinitionList,
+        [pscustomobject]$OwnedCommandDefinition
+    )
+
+    $parentCommand = Find-GerberRegisteredCommandConflict -RegisteredCommandList $RegisteredCommandList -CommandName $OwnedCommandDefinition.ParentName
+    if ($null -ne $parentCommand) {
+        return $parentCommand
     }
+    return ($OwnedCommandDefinitionList | Where-Object { $_.Name -ieq $OwnedCommandDefinition.ParentName } | Select-Object -First 1)
+}
 
-    $existingOwnedCommand = Find-GerberOwnedCommandDefinitionByParentAndLeafName `
-        -OwnedCommandDefinitionList $OwnedCommandDefinitionList `
-        -ParentName $OwnedCommandDefinition.ParentName `
-        -LeafName $OwnedCommandDefinition.LeafName `
-        -ExcludeName $OwnedCommandDefinition.Name
-    if ($null -ne $existingOwnedCommand) {
-        return
+function Test-GerberSubcommandContributionConflict {
+    param(
+        [AllowNull()]
+        [pscustomobject]$Parent,
+        [object[]]$Definitions,
+        [pscustomobject]$Command
+    )
+
+    if (($null -eq $Parent) -or (-not $Parent.Subcommands.Contains($Command.LeafName))) {
+        return $false
     }
+    $existingOwnedCommand = Find-GerberSubcommandContributionSibling -Definitions $Definitions -Command $Command
+    return $null -eq $existingOwnedCommand
+}
 
-    throw [System.InvalidOperationException]::new(
-        "Gerber cannot register subcommand '$($OwnedCommandDefinition.LeafName)' under command '$($OwnedCommandDefinition.ParentName)' from owner '$($OwnedCommandDefinition.OwnerName)' because it is already owned by '$($parentCommand.OwnerName)'."
+function Find-GerberSubcommandContributionSibling {
+    param(
+        [object[]]$Definitions,
+        [pscustomobject]$Command
+    )
+
+    return Find-GerberOwnedCommandDefinitionByParentAndLeafName `
+        -OwnedCommandDefinitionList $Definitions `
+        -ParentName $Command.ParentName `
+        -LeafName $Command.LeafName `
+        -ExcludeName $Command.Name
+}
+
+function ConvertTo-GerberSubcommandOwnershipException {
+    param(
+        [pscustomobject]$Parent,
+        [pscustomobject]$Command
+    )
+
+    return [System.InvalidOperationException]::new(
+        "Gerber cannot register subcommand '$($Command.LeafName)' under command '$($Command.ParentName)' from owner '$($Command.OwnerName)' because it is already owned by '$($Parent.OwnerName)'."
     )
 }
 
@@ -610,38 +823,32 @@ function Find-GerberOwnedCommandDefinitionByParentAndLeafName {
         [string]$ExcludeName
     )
 
-    foreach ($ownedCommand in $OwnedCommandDefinitionList) {
-        if (Test-GerberOwnedCommandMatchesParentAndLeaf `
-                -OwnedCommandDefinition $ownedCommand `
-                -ParentName $ParentName `
-                -LeafName $LeafName `
-                -ExcludeName $ExcludeName) {
-            return $ownedCommand
-        }
-    }
+    return Find-GerberOwnedCommandByCriterion -Criteria ([pscustomobject]$PSBoundParameters) -ExcludeName $ExcludeName
+}
 
-    return $null
+function Find-GerberOwnedCommandByCriterion {
+    param(
+        [pscustomobject]$Criteria,
+        [string]$ExcludeName
+    )
+
+    return ($Criteria.OwnedCommandDefinitionList |
+        Where-Object { Test-GerberOwnedCommandMatchesParentAndLeaf -Candidate $_ -Criteria $Criteria -ExcludeName $ExcludeName } |
+        Select-Object -First 1)
 }
 
 function Test-GerberOwnedCommandMatchesParentAndLeaf {
     [OutputType([bool])]
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
-        [pscustomobject]$OwnedCommandDefinition,
-
-        [Parameter(Mandatory)]
-        [string]$ParentName,
-
-        [Parameter(Mandatory)]
-        [string]$LeafName,
-
+        [pscustomobject]$Candidate,
+        [pscustomobject]$Criteria,
         [string]$ExcludeName
     )
 
-    return ($OwnedCommandDefinition.ParentName -ieq $ParentName) -and
-        ($OwnedCommandDefinition.LeafName -ieq $LeafName) -and
-        ($OwnedCommandDefinition.Name -ine $ExcludeName)
+    return ($Candidate.ParentName -ieq $Criteria.ParentName) -and
+        ($Candidate.LeafName -ieq $Criteria.LeafName) -and
+        ($Candidate.Name -ine $ExcludeName)
 }
 
 function Get-GerberRegisteredCommandConflictException {
@@ -655,14 +862,9 @@ function Get-GerberRegisteredCommandConflictException {
         [pscustomobject]$ExistingCommandDefinition
     )
 
-    if ($OwnedCommandDefinition.ParentName) {
-        return [System.InvalidOperationException]::new(
-            "Gerber cannot register command '$($OwnedCommandDefinition.Name)' from owner '$($OwnedCommandDefinition.OwnerName)' because it is already owned by '$($ExistingCommandDefinition.OwnerName)'."
-        )
-    }
-
+    $commandKind = if ($OwnedCommandDefinition.ParentName) { 'command' } else { 'root command' }
     return [System.InvalidOperationException]::new(
-        "Gerber cannot register root command '$($OwnedCommandDefinition.Name)' from owner '$($OwnedCommandDefinition.OwnerName)' because it is already owned by '$($ExistingCommandDefinition.OwnerName)'."
+        "Gerber cannot register $commandKind '$($OwnedCommandDefinition.Name)' from owner '$($OwnedCommandDefinition.OwnerName)' because it is already owned by '$($ExistingCommandDefinition.OwnerName)'."
     )
 }
 
@@ -674,6 +876,16 @@ function Add-GerberOwnedSubcommandDefinition {
         [System.Collections.Generic.List[object]]$RegisteredCommandList,
 
         [Parameter(Mandatory)]
+        [pscustomobject]$OwnedCommandDefinition
+    )
+
+    Add-GerberSubcommandCatalogRegistration @PSBoundParameters
+}
+
+function Add-GerberSubcommandCatalogRegistration {
+    [CmdletBinding()]
+    param(
+        [System.Collections.Generic.List[object]]$RegisteredCommandList,
         [pscustomobject]$OwnedCommandDefinition
     )
 

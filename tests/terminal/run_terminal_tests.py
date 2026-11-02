@@ -374,10 +374,7 @@ def run_selected_scenarios(args, started_at: float) -> int:
         fixture_module_root=runner_context.gerber_root / "tests/terminal/fixtures/modules",
         output_path=plugin_registry_inventory_path,
     )
-    plugin_inventory = [
-        item for item in plugin_registry_inventory
-        if item["ownerType"] == "Plugin"
-    ]
+    plugin_inventory = select_plugin_contract_inventory(plugin_registry_inventory)
     plugin_inventory_path = runner_context.run_root / "plugin-command-inventory.json"
     plugin_inventory_path.write_text(json.dumps(plugin_inventory, indent=2), encoding="utf-8")
     scenario_list = select_scenarios(args)
@@ -412,6 +409,12 @@ def run_selected_scenarios(args, started_at: float) -> int:
     )
     print_results(result_list)
     return evaluate_run(args, result_list, coverage_reports)
+
+def select_plugin_contract_inventory(inventory: list[dict]) -> list[dict]:
+    return [
+        item for item in inventory
+        if item["ownerType"] == "Plugin" or item.get("conditionalContainer", False)
+    ]
 
 
 def write_run_reports(

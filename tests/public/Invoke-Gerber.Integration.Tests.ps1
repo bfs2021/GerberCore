@@ -2,7 +2,7 @@ BeforeAll {
     . (Join-Path (Split-Path -Parent $PSScriptRoot) 'TestHelpers/GerberTestSupport.ps1')
 }
 
-Describe 'Invoke-Gerber integration' {
+Describe 'Invoke-Gerber integration' -Tag 'ActiveCommandTree' {
     It 'keeps both runtime requirements and registers /update without running startup on import' -Tag 'G4A7' {
         $root = Get-GerberProjectRoot -StartPath $PSScriptRoot
         $manifestPath = Join-Path $root 'dist/Gerber/Gerber.psd1'
@@ -117,7 +117,11 @@ Describe 'Invoke-Gerber integration' {
                 }
             } $fixtureModuleRoot
 
-            @($result.ActionList) | Should -Contain 'repository'
+            @($result.ActionList) | Should -Not -Contain 'branch'
+            @($result.ActionList) | Should -Not -Contain 'list'
+            @($result.ActionList) | Should -Not -Contain 'pipelines'
+            @($result.ActionList) | Should -Not -Contain 'repository'
+            @($result.ActionList) | Should -Contain 'tools'
             $result.PluginLeafCommand.IsValid | Should -BeFalse
         } finally {
             $env:PSModulePath = $originalModulePath
@@ -163,7 +167,11 @@ Describe 'Invoke-Gerber integration' {
                 }
             } $fixtureModuleRoot
 
-            @($result.ActionList) | Should -Contain 'repository'
+            @($result.ActionList) | Should -Not -Contain 'branch'
+            @($result.ActionList) | Should -Not -Contain 'list'
+            @($result.ActionList) | Should -Not -Contain 'pipelines'
+            @($result.ActionList) | Should -Not -Contain 'repository'
+            @($result.ActionList) | Should -Contain 'tools'
             $result.PluginLeafCommand.IsValid | Should -BeFalse
         } finally {
             $env:PSModulePath = $originalModulePath

@@ -48,7 +48,7 @@ Describe 'Add-GerberPluginToRegistryBuilder' -Tag 'PluginTransactions' {
             $builder.PluginList[0].IsAssociated | Should -BeFalse
             $builder.PluginList[0].IsEnabled | Should -BeTrue
             Get-GerberRegisteredCommand -Name 'repository staging' | Should -BeNullOrEmpty
-            (Get-GerberRegisteredCommand -Name 'repository').Subcommands.Contains('staging') | Should -BeFalse
+            Get-GerberRegisteredCommand -Name 'repository' | Should -BeNullOrEmpty
             @($script:GerberCommandRegistryState.PluginList).Count | Should -Be 0
         }
     }

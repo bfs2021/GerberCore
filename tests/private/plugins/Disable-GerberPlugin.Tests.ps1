@@ -74,7 +74,7 @@ Describe 'Disable-GerberPlugin' -Tag 'PluginTransactions' {
             if ($Failure -eq 'partial') {
                 Mock Unregister-GerberPlugin {
                     & $script:unregisterPlugin -Guid $Guid
-                    (Get-GerberRegisteredCommand -Name 'repository').Subcommands.Clear()
+                    (Get-GerberRegisteredCommand -Name 'tools').Subcommands.Clear()
                     throw 'partial unregistration fault'
                 }
             } else {

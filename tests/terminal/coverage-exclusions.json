@@ -6,34 +6,10 @@
     "reason": "The root tools menu delegates failures to executable leaf workflows; Base64 recovery is covered separately."
   },
   {
-    "command": "list",
-    "categories": ["error-recovery"],
-    "classification": "menu-container",
-    "reason": "The root list menu delegates failures to executable leaf workflows."
-  },
-  {
-    "command": "branch",
-    "categories": ["error-recovery"],
-    "classification": "menu-container",
-    "reason": "The root branch menu has no independent failure behavior beyond leaf dispatch."
-  },
-  {
-    "command": "repository",
-    "categories": ["error-recovery"],
-    "classification": "menu-container",
-    "reason": "The root repository menu has no independent failure behavior beyond leaf dispatch."
-  },
-  {
     "command": "plugins",
     "categories": ["error-recovery"],
     "classification": "menu-container",
     "reason": "The root plugins menu has no independent failure behavior beyond its read-only child commands."
-  },
-  {
-    "command": "pipelines",
-    "categories": ["error-recovery"],
-    "classification": "menu-container",
-    "reason": "The root pipelines menu has no independent failure behavior beyond leaf dispatch."
   },
   {
     "command": "secrets",

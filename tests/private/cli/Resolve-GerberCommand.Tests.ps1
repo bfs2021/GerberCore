@@ -3,7 +3,7 @@ BeforeAll {
     Import-GerberSource -StartPath $PSScriptRoot
 }
 
-Describe 'Resolve-GerberCommand' {
+Describe 'Resolve-GerberCommand' -Tag 'ActiveCommandTree' {
     It 'returns a prompt message for empty input' {
         $result = Resolve-GerberCommand -InputText ''
 
@@ -19,13 +19,40 @@ Describe 'Resolve-GerberCommand' {
         $result.Arguments | Should -Be @('base-64', 'decode')
     }
 
+    It 'accepts arguments for a standalone contributed root regardless of its historical name' -ForEach @(
+        @{ Root = 'branch' }
+        @{ Root = 'list' }
+        @{ Root = 'pipelines' }
+        @{ Root = 'repository' }
+    ) {
+        param($Root)
+
+        Mock Get-GerberRegisteredCommand {
+            [pscustomobject]@{
+                Name = $Root
+                Description = 'Generic standalone action'
+                Handler = { $false }
+                Subcommands = [ordered]@{}
+                OwnerType = 'Plugin'
+            }
+        }
+
+        $result = Resolve-GerberCommand -InputText "/$Root payload" -ActionList @($Root)
+
+        $result.IsValid | Should -BeTrue
+        $result.Name | Should -Be $Root
+        $result.Arguments | Should -Be @('payload')
+        $result.ErrorMessage | Should -BeNullOrEmpty
+        $result.Suggestions | Should -BeNullOrEmpty
+    }
+
     It 'suggests matching commands for partial slash input' {
         $result = Resolve-GerberCommand -InputText '/to'
 
         $result.IsValid | Should -BeFalse
         $result.Suggestions.DisplayText | Should -Contain '/tools'
-        $result.Suggestions.DisplayText | Should -Contain '/repository'
-        $result.ErrorMessage | Should -Match '/repository|/tools'
+        $result.Suggestions.DisplayText | Should -Not -Contain '/repository'
+        $result.ErrorMessage | Should -Match '/tools'
     }
 
     It 'shows root suggestions for a lone slash' {
@@ -37,10 +64,6 @@ Describe 'Resolve-GerberCommand' {
             '/help',
             '/plugins',
             '/update',
-            '/branch',
-            '/list',
-            '/pipelines',
-            '/repository',
             '/secrets',
             '/tools'
         )
@@ -179,17 +202,17 @@ Describe 'Resolve-GerberCommand' {
         $result.Suggestions.DisplayText | Should -Be @('/tools base-64 decode', '/tools base-64 encode')
     }
 
-    It 'previews list subcommands for /list' {
+    It 'rejects an uncontributed /list root' {
         $result = Resolve-GerberCommand -InputText '/list'
 
-        $result.IsValid | Should -BeTrue
+        $result.IsValid | Should -BeFalse
         $result.Suggestions | Should -BeNullOrEmpty
     }
 
-    It 'previews repository subcommands for /repository' {
+    It 'rejects an uncontributed /repository root' {
         $result = Resolve-GerberCommand -InputText '/repository'
 
-        $result.IsValid | Should -BeTrue
+        $result.IsValid | Should -BeFalse
         $result.Suggestions | Should -BeNullOrEmpty
     }
 
@@ -200,10 +223,10 @@ Describe 'Resolve-GerberCommand' {
         $result.Suggestions.DisplayText | Should -Be @('/plugins create', '/plugins disable', '/plugins enable', '/plugins info', '/plugins list')
     }
 
-    It 'previews pipelines subcommands for /pipelines' {
+    It 'rejects an uncontributed /pipelines root' {
         $result = Resolve-GerberCommand -InputText '/pipelines'
 
-        $result.IsValid | Should -BeTrue
+        $result.IsValid | Should -BeFalse
         $result.Suggestions | Should -BeNullOrEmpty
     }
 
@@ -212,7 +235,7 @@ Describe 'Resolve-GerberCommand' {
 
         $result.IsValid | Should -BeFalse
         $result.Suggestions | Should -BeNullOrEmpty
-        $result.ErrorMessage | Should -Match "Unknown command '/pipelines release'"
+        $result.ErrorMessage | Should -Be "Unknown command '/pipelines'. Use /help to see the available commands."
     }
 
     It 'previews secrets subcommands for /secrets' {
@@ -403,17 +426,10 @@ Describe 'Resolve-GerberCommand' {
         $result.Count | Should -Be 0
     }
 
-    It 'keeps the built-in list command catalog empty because list actions come from registered command definitions' {
-        $catalog = Get-GerberListCommandCatalog
-
-        $catalog.Count | Should -Be 0
-    }
-
-    It 'includes branch in the root command catalog' {
+    It 'omits uncontributed branch from the root command catalog' {
         $catalog = Get-GerberCommandCatalog -ActionList @('tools', 'list', 'branch', 'repository', 'secrets', 'help', 'exit')
 
-        $catalog.Keys | Should -Contain 'branch'
-        $catalog['branch'].Description | Should -Be 'Search repositories by branch'
+        $catalog.Keys | Should -Not -Contain 'branch'
     }
 
     It 'projects the root command catalog from the registered command definitions' {
@@ -437,15 +453,15 @@ Describe 'Resolve-GerberCommand' {
         $catalog['alpha'].Subcommands.Keys | Should -Be @('beta')
     }
 
-    It 'keeps the generic branch root empty without registered plugin leaves' {
+    It 'rejects the generic branch root without registered plugin leaves' {
         $result = Resolve-GerberCommand -InputText '/branch' -ActionList @('tools', 'list', 'branch', 'repository', 'secrets', 'help', 'exit')
 
-        $result.IsValid | Should -BeTrue
+        $result.IsValid | Should -BeFalse
         $result.Suggestions | Should -BeNullOrEmpty
     }
 
-    It 'keeps the generic repository catalog empty without registered plugin leaves' {
-        $catalog = (Get-GerberRegisteredCommand -Name repository).Subcommands
+    It 'omits the generic repository catalog without registered plugin leaves' {
+        $catalog = Get-GerberCommandCatalog -ActionList @('repository')
 
         $catalog.Count | Should -Be 0
     }

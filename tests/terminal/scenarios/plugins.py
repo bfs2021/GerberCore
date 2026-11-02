@@ -438,7 +438,7 @@ def _select_plugins_list_from_parent(context) -> None:
 def _return_to_root_from_plugins_parent(context) -> None:
     time.sleep(0.7)
     context.app.press("ESCAPE")
-    context.app.wait_for_text("/branch")
+    context.app.wait_for_text("/tools")
     context.app.wait_for_prompt()
     context.app.expect_input("/")
     context.app.expect_selected_suggestion("/exit")

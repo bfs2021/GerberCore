@@ -65,7 +65,7 @@ Describe 'Register-GerberPlugin' -Tag 'PluginTransactions' {
         )
         switch ($Fault) {
             'validation' {
-                $script:definition.Commands += Get-GerberPluginTransactionCommand 'repository'
+                $script:definition.Commands += Get-GerberPluginTransactionCommand 'tools'
             }
             'preparation' {
                 Mock Add-GerberOwnedSubcommandDefinition {

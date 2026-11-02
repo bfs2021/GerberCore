@@ -3,7 +3,7 @@ BeforeAll {
     Import-GerberSource -StartPath $PSScriptRoot
 }
 
-Describe 'Show-GerberHelpView' {
+Describe 'Show-GerberHelpView' -Tag 'ActiveCommandTree' {
     It 'lists the remaining command surface and excludes removed placeholder commands' {
         $script:helpTitle = $null
         $script:helpText = $null
@@ -17,13 +17,14 @@ Describe 'Show-GerberHelpView' {
 
         $script:helpTitle | Should -Be '/help'
         $script:helpText | Should -Match '/tools'
-        $script:helpText | Should -Match '/list'
-        $script:helpText | Should -Match '/repository Open the interactive repository menu'
+        $script:helpText | Should -Not -Match '/list'
+        $script:helpText | Should -Not -Match '/repository'
+        $script:helpText | Should -Not -Match '/branch'
         $script:helpText | Should -Not -Match '/repository create Create a new repository from template'
         $script:helpText | Should -Match '/plugins Show Gerber plugin status and manage plugin activation'
         $script:helpText | Should -Match '/plugins list List discovered and persisted Gerber plugins'
         $script:helpText | Should -Match '/plugins info Show detailed plugin information by GUID or unique module name'
-        $script:helpText | Should -Match '/pipelines'
+        $script:helpText | Should -Not -Match '/pipelines'
         $script:helpText | Should -Not -Match '/pipelines tags Open the pipeline tag submenu'
         $script:helpText | Should -Not -Match '/pipelines release'
         $script:helpText | Should -Not -Match '/pipelines tags delete'

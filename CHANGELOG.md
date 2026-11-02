@@ -80,6 +80,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Empty menu-only roots and intermediate submenus are removed from the active
+  command tree. `/branch`, `/list`, `/pipelines` and `/repository` appear only
+  with available plugin actions; shared roots retain other active contributors.
+  Enable/disable refreshes menus, suggestions, help and direct command lookup
+  without duplicate commands. Standalone Core actions remain available.
 - Plugin discovery now skips unreadable module-search roots instead of
   terminating the plugin inventory or `/update list` with a permission error.
   Accessible plugins and Core update checks remain available; filesystem

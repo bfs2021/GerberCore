@@ -24,33 +24,9 @@ function Get-GerberCoreRootCommandDefinitionList {
             Subcommands = [ordered]@{}
         }
         [pscustomobject][ordered]@{
-            Name        = 'list'
-            Description = 'Open the interactive list menu'
-            Handler     = { param([pscustomobject]$Command) Show-GerberListView -Command $Command; return $false }
-            Subcommands = Get-GerberListCommandCatalog
-        }
-        [pscustomobject][ordered]@{
-            Name        = 'branch'
-            Description = 'Search repositories by branch'
-            Handler     = { param([pscustomobject]$Command) Show-GerberBranchView -Command $Command; return $false }
-            Subcommands = [ordered]@{}
-        }
-        [pscustomobject][ordered]@{
-            Name        = 'repository'
-            Description = 'Open the interactive repository menu'
-            Handler     = { param([pscustomobject]$Command) Show-GerberRepositoryView -Command $Command; return $false }
-            Subcommands = [ordered]@{}
-        }
-        [pscustomobject][ordered]@{
             Name        = 'plugins'
             Description = 'Show Gerber plugin status and manage plugin activation'
             Handler     = { param([pscustomobject]$Command) Show-GerberPluginsView -Command $Command; return $false }
-            Subcommands = [ordered]@{}
-        }
-        [pscustomobject][ordered]@{
-            Name        = 'pipelines'
-            Description = 'Open the interactive pipelines menu'
-            Handler     = { param([pscustomobject]$Command) Show-GerberPipelinesView -Command $Command; return $false }
             Subcommands = [ordered]@{}
         }
         [pscustomobject][ordered]@{

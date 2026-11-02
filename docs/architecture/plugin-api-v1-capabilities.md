@@ -130,6 +130,20 @@ Module import does not register commands or imply Gerber approval. Discovery,
 GUID approval, association and enable/disable rules are unchanged. Declined
 and disabled plugins contribute no commands; non-ADO Core tools remain usable.
 
+The published command tree contains only standalone actions and menus with
+available descendants. Plugins may share menu paths; removing one plugin does
+not remove another plugin's actions beneath the same root. Empty menu-only
+ancestors disappear after the last contribution is disabled and return when a
+contributor is enabled. Menu browsing, completion, help and direct resolution
+all use that tree, not separate visibility filters.
+
+Mark a menu-only command definition or subcommand catalog entry with
+`IsContainer = $true`. It is available only with an available descendant;
+its menu handler alone is not a standalone action. Missing ancestors of
+registered actions are created as shared containers automatically.
+Existing API v1 handlers without this optional flag retain their standalone
+behavior, including commands that perform an action and also have subcommands.
+
 ## Development-time boundary validation
 
 The exported development command does not start Gerber, read user configuration,

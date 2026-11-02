@@ -13,11 +13,7 @@ Describe 'Get-GerberCoreCommandDefinitionList' -Tag 'G4A7' {
 
         $definitionList.Name | Should -Be @(
             'tools',
-            'list',
-            'branch',
-            'repository',
             'plugins',
-            'pipelines',
             'secrets',
             'update',
             'help',
@@ -80,7 +76,6 @@ Describe 'Get-GerberCoreCommandDefinitionList' -Tag 'G4A7' {
 
     It 'exposes representative metadata and subcommand structure' {
         $definitionList = @(Get-GerberCoreCommandDefinitionList)
-        $repositoryCommand = $definitionList | Where-Object Name -EQ 'repository'
         $helpCommand = $definitionList | Where-Object Name -EQ 'help'
         $exitCommand = $definitionList | Where-Object Name -EQ 'exit'
         $pluginsCommand = $definitionList | Where-Object Name -EQ 'plugins'
@@ -89,10 +84,10 @@ Describe 'Get-GerberCoreCommandDefinitionList' -Tag 'G4A7' {
         $createUuidCommand = $definitionList | Where-Object Name -EQ 'tools create-uuid'
         $base64Command = $definitionList | Where-Object Name -EQ 'tools base-64'
 
-        $repositoryCommand.Description | Should -Be 'Open the interactive repository menu'
-        $repositoryCommand.Handler | Should -BeOfType ([scriptblock])
-        $repositoryCommand.Handler.ToString() | Should -Match 'Show-GerberRepositoryView'
-        $repositoryCommand.Subcommands.Count | Should -Be 0
+        $definitionList.Name | Should -Not -Contain 'repository'
+        $definitionList.Name | Should -Not -Contain 'branch'
+        $definitionList.Name | Should -Not -Contain 'list'
+        $definitionList.Name | Should -Not -Contain 'pipelines'
         $pluginsCommand.Description | Should -Be 'Show Gerber plugin status and manage plugin activation'
         $pluginsCommand.Handler.ToString() | Should -Match 'Show-GerberPluginsView'
         $pluginsCommand.Subcommands.Count | Should -Be 0
