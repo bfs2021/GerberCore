@@ -5,6 +5,7 @@ BeforeAll {
 
 Describe 'New-GerberPluginProject' -Tag 'PluginCreate' {
     BeforeEach {
+        Mock Get-GerberModuleSemanticVersion { '1.2.3' }
         $parent = Join-Path $TestDrive ([System.IO.Path]::GetRandomFileName())
         $null = New-Item -ItemType Directory -Path $parent
         $request = [pscustomobject]@{

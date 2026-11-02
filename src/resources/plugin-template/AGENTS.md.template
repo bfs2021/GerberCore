@@ -69,7 +69,7 @@ identity, not an update. Nova propagates it into the built module manifest.
 The public plugin definition's `Guid` must match that manifest GUID.
 
 `Manifest.PrivateData.Gerber` contains `Plugin: true`, `ApiVersion: "1"` and
-`MinimumGerberVersion: "0.1.0-preview"`. Do not add a second GUID there.
+`MinimumGerberVersion: "{{MinimumGerberVersion}}"`. Do not add a second GUID there.
 The module name has the fixed `Gerber.` prefix; the command namespace
 `/{{Namespace}}` is a separate registration path, not an approval identity.
 

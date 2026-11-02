@@ -1,9 +1,13 @@
-BeforeAll {
+﻿BeforeAll {
     . (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'TestHelpers/GerberTestSupport.ps1')
     Import-GerberSource -StartPath $PSScriptRoot
 }
 
 Describe 'Write-GerberPluginProject' -Tag 'PluginCreate' {
+    BeforeEach {
+        Mock Get-GerberModuleSemanticVersion { '1.2.3-preview04' }
+    }
+
     Context 'repository metadata' -Tag 'PluginCreateRepository' {
         It 'writes canonical <Label> directly under Gerber without an Update intermediary' -ForEach @(
             @{ Label = 'known custom source'; Uri = 'https://packages.example.org/feed' }
@@ -45,6 +49,7 @@ Describe 'Write-GerberPluginProject' -Tag 'PluginCreate' {
         $project.Manifest.GUID | Should -Be $guid
         $project.Manifest.PrivateData.Gerber.PSObject.Properties.Name | Should -Not -Contain 'Guid'
         $project.Manifest.PrivateData.Gerber.Plugin | Should -BeTrue
+        $project.Manifest.PrivateData.Gerber.MinimumGerberVersion | Should -Be '1.2.3-preview04'
         Test-Path (Join-Path $TestDrive '.gitignore') | Should -BeTrue
         @(Get-ChildItem $TestDrive -Recurse -Include '*.psd1', '*.psm1').Count | Should -Be 0
     }
