@@ -9,21 +9,23 @@ function Get-GerberModuleSemanticVersion {
         $Module = $MyInvocation.MyCommand.Module
     }
     $unresolved = 'Unable to resolve the executing Gerber module version. The plugin MinimumGerberVersion cannot be generated; rebuild or reinstall Gerber and retry.'
-    if ($null -eq $Module) {
-        throw [System.InvalidOperationException]::new($unresolved)
-    }
-    if ($Module.Name -ne 'Gerber') {
-        throw [System.InvalidOperationException]::new($unresolved)
-    }
-    if ($null -eq $Module.Version) {
+    if ($null -eq $Module -or $Module.Name -ne 'Gerber' -or $null -eq $Module.Version) {
         throw [System.InvalidOperationException]::new($unresolved)
     }
 
-    $psData = Get-GerberModulePrivateDataValueOrNull -InputObject $Module.PrivateData -Name 'PSData'
-    $prerelease = Get-GerberModulePrivateDataValueOrNull -InputObject $psData -Name 'Prerelease'
+    $prerelease = $null
+    if ($null -ne $Module.PrivateData) {
+        $psData = $Module.PrivateData['PSData']
+        if ($null -ne $psData) {
+            $prerelease = $psData['Prerelease']
+        }
+    }
+
+    $build = [Math]::Max($Module.Version.Build, 0)
+    $core = '{0}.{1}.{2}' -f $Module.Version.Major, $Module.Version.Minor, $build
     if ([string]::IsNullOrWhiteSpace([string]$prerelease)) {
-        return [string]$Module.Version
+        return $core
     }
 
-    return ('{0}-{1}' -f $Module.Version, $prerelease)
+    return ('{0}-{1}' -f $core, $prerelease)
 }

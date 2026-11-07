@@ -1,4 +1,4 @@
-﻿BeforeAll {
+BeforeAll {
     . (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'TestHelpers/GerberTestSupport.ps1')
     Import-GerberSource -StartPath $PSScriptRoot
 }
@@ -50,6 +50,7 @@ Describe 'Write-GerberPluginProject' -Tag 'PluginCreate' {
         $project.Manifest.PrivateData.Gerber.PSObject.Properties.Name | Should -Not -Contain 'Guid'
         $project.Manifest.PrivateData.Gerber.Plugin | Should -BeTrue
         $project.Manifest.PrivateData.Gerber.MinimumGerberVersion | Should -Be '1.2.3-preview04'
+        (Get-Content (Join-Path $TestDrive 'AGENTS.md') -Raw) | Should -Match ([regex]::Escape('MinimumGerberVersion: "1.2.3-preview04"'))
         Test-Path (Join-Path $TestDrive '.gitignore') | Should -BeTrue
         @(Get-ChildItem $TestDrive -Recurse -Include '*.psd1', '*.psm1').Count | Should -Be 0
     }

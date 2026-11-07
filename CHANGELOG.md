@@ -80,6 +80,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Plugin-created projects now stamp `MinimumGerberVersion` with the semantic
+  version of the Gerber module that generated them, including prerelease
+  metadata, instead of the hard-coded `0.1.0-preview`.
 - Empty menu-only roots and intermediate submenus are removed from the active
   command tree. `/branch`, `/list`, `/pipelines` and `/repository` appear only
   with available plugin actions; shared roots retain other active contributors.
