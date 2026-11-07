@@ -69,9 +69,9 @@ Describe 'Initialize-GerberCommandRegistry' -Tag 'PluginTransactions', 'G4A7' {
 
         $registry = @(Initialize-GerberCommandRegistry -PluginModulePathList @($script:isolatedModuleRoot))
 
-        $registry.Name | Should -Be @('tools', 'list', 'branch', 'repository', 'plugins', 'pipelines', 'secrets', 'update', 'help', 'exit', 'example')
+        $registry.Name | Should -Be @('tools', 'plugins', 'secrets', 'update', 'help', 'exit', 'example')
         ($registry | Where-Object Name -EQ 'example').OwnerName | Should -Be 'Gerber.TestPlugin'
-        Get-GerberActionList | Should -Be @('exit', 'help', 'plugins', 'update', 'branch', 'example', 'list', 'pipelines', 'repository', 'secrets', 'tools')
+        Get-GerberActionList | Should -Be @('exit', 'help', 'plugins', 'update', 'example', 'secrets', 'tools')
     }
 
     It 'adds discovered plugin commands to the command catalog and resolver without plugin-specific branches' {
@@ -310,7 +310,7 @@ Describe 'Initialize-GerberCommandRegistry' -Tag 'PluginTransactions', 'G4A7' {
 
         $registry = @(Initialize-GerberCommandRegistry -PluginModulePathList @($script:isolatedModuleRoot))
 
-        $registry.Name | Should -Be @('tools', 'list', 'branch', 'repository', 'plugins', 'pipelines', 'secrets', 'update', 'help', 'exit')
+        $registry.Name | Should -Be @('tools', 'plugins', 'secrets', 'update', 'help', 'exit')
         (Get-GerberRegisteredPluginApiContext -OwnerName 'Gerber.NamedParameterPlugin').ApiVersion | Should -Be '1'
     }
 

@@ -1,14 +1,14 @@
 function Show-GerberUpdatePolicyView {
     param()
     if (-not (Test-GerberUpdateInteractive)) {
-        Write-GerberScreenLine -Text 'Open /update policy in an interactive Gerber session to change the Core update channel.'
+        Write-GerberScreenLine -Text 'Open /update policy in an interactive Gerber session to change the shared Core and plugin update channel.'
         return
     }
     $policy = Resolve-GerberCoreUpdatePolicy
     $label = Get-GerberCoreUpdateChannelLabel $policy.Channel
     $items = @(Get-GerberCoreUpdatePolicyMenuItemList $policy.Channel)
     $selected = Read-GerberNumberedMenuPrompt -Prompt 'Core update channel (Esc to go back)' `
-        -ScreenTitle '/update policy' -ScreenText "Current Core update policy: $label." -MenuItemList $items
+        -ScreenTitle '/update policy' -ScreenText "Current Core update policy: $label. Shared by Core and plugin checks in /update list; startup checks Core only." -MenuItemList $items
     Save-GerberCoreUpdatePolicySelection $selected
     Wait-GerberContinue
 }
@@ -20,7 +20,7 @@ function Get-GerberCoreUpdatePolicyMenuItemList {
         [pscustomobject]@{
             Number = $index + 1; Value = $channels[$index]
             Label = Get-GerberCoreUpdateChannelLabel $channels[$index]
-            PreviewText = 'Use this channel for startup and /update list. Nothing will be installed.'
+            PreviewText = 'Use this channel for Core startup checks and Core/plugin checks in /update list. Nothing will be installed.'
         }
     }
 }

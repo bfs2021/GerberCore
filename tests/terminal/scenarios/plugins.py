@@ -10,9 +10,7 @@ from framework.scenario_registry import ScenarioMetadata, scenario
 
 from .core import _press_double_escape
 from .core_mission_support import (
-    ADO_PAT,
     assert_no_secret_leak,
-    seed_ado_state,
     strict_http_fixture,
 )
 
@@ -22,6 +20,10 @@ SYNTHETIC_PLUGIN_FAILURE = "Synthetic plugin failure."
 SYNTHETIC_EMPTY_TITLE = "/repository empty-text"
 PLUGIN_SECRET = "terminal-plugin-secret"
 PLUGIN_GUID = "7dd21b37-e080-4240-b05f-ec727389035e"
+PLUGIN_CREATION_INPUT_BATCH_SIZE = 64
+PLUGIN_REPOSITORY_URI = "https://packages.example.org/feed"
+PLUGIN_REPOSITORY_NAME = "ExampleFeed"
+PLUGIN_REPOSITORY_PLACEHOLDER = "REPLACE_WITH_REPOSITORY_URI"
 
 
 def _start_plugin_creation_session(context) -> None:
@@ -51,7 +53,9 @@ def _start_plugin_creation_session(context) -> None:
 
 def _submit_plugin_creation_field(context, prompt: str, value: str) -> None:
     context.app.wait_for_text(prompt)
-    context.app.type(value)
+    # Drain long input incrementally without extending screen-stability deadlines.
+    for offset in range(0, len(value), PLUGIN_CREATION_INPUT_BATCH_SIZE):
+        context.app.type(value[offset:offset + PLUGIN_CREATION_INPUT_BATCH_SIZE])
     context.app.press("ENTER")
 
 
@@ -60,6 +64,7 @@ def _assert_plugin_creation_trace(context) -> None:
     cursor = events.index("prompt-escape")
     for event in (
         "plugin-create-input-rejected",
+        "numbered-submit",
         "plugin-create-validation-started", "plugin-create-validation-passed",
         "plugin-approval-persisted", "plugin-create-completed",
     ):
@@ -78,7 +83,25 @@ def _assert_plugin_creation_trace(context) -> None:
 )
 def plugin_create_workflow(context) -> None:
     _start_plugin_creation_session(context)
-    config_path = context.app.runtime_paths.scenario_root / "config.json"
+    _cancel_plugin_creation_at_suffix(context)
+    _enter_plugin_creation_with_recovery(context)
+    _accept_plugin_gallery_repository(context)
+    _finish_plugin_creation(context)
+    project = _assert_created_plugin_lifecycle(context)
+    metadata = project["Manifest"]["PrivateData"]["Gerber"]
+    assert "RepositoryUri" not in metadata
+    assert metadata["Repository"] == {
+        "Name": "PSGallery", "Uri": "https://www.powershellgallery.com/api/v2",
+    }
+    context.app.wait_for_text("Repository: PSGallery")
+    context.app.wait_for_text("https://www.powershellgallery.com/api/v2")
+    _assert_plugin_repository_choice_trace(context, "PSGallery")
+    _assert_plugin_creation_trace(context)
+    _inspect_created_plugin_from_parent(context)
+
+
+def _cancel_plugin_creation_at_suffix(context) -> None:
+    config_path = context.app.runtime_paths.scenario_root / "GerberCore.json"
     before = config_path.read_text()
     _open_plugins_parent_menu(context)
     context.app.press("ENTER")
@@ -88,6 +111,9 @@ def plugin_create_workflow(context) -> None:
     _expect_plugins_parent_menu(context)
     assert config_path.read_text() == before, "Escape must not persist a generated approval"
     context.app.press("ENTER")
+
+
+def _enter_plugin_creation_with_recovery(context) -> None:
     _submit_plugin_creation_field(context, "Module suffix", "../bad")
     context.app.wait_for_text("Enter a module suffix")
     _submit_plugin_creation_field(context, "Module suffix", "MyCompany")
@@ -95,6 +121,16 @@ def plugin_create_workflow(context) -> None:
     _submit_plugin_creation_field(context, "Command namespace", "tools")
     context.app.wait_for_text("already registered")
     _submit_plugin_creation_field(context, "Command namespace", "mycompany")
+
+
+def _accept_plugin_gallery_repository(context) -> None:
+    context.app.wait_for_text("Plugin repository:")
+    context.app.expect_selected_suggestion_highlighted("1. PSGallery (default)")
+    context.app.wait_for_text("2. Another repository")
+    context.app.press("ENTER")
+
+
+def _finish_plugin_creation(context) -> None:
     context.app.wait_for_text("Select the parent directory")
     context.app.wait_for_text("Default:")
     context.app.wait_for_text("Project directory:")
@@ -104,6 +140,10 @@ def plugin_create_workflow(context) -> None:
                  "Approval:   Approved", "Associated: Yes", "Enabled:    Yes",
                  "Installed:  No", "Publish-NovaModule -Local", "/mycompany hello"):
         context.app.wait_for_text(text)
+
+
+def _assert_created_plugin_lifecycle(context) -> dict:
+    config_path = context.app.runtime_paths.scenario_root / "GerberCore.json"
     project_path = context.app.runtime_paths.scenario_root / "Gerber.MyCompany"
     project = json.loads((project_path / "project.json").read_text())
     guid = project["Manifest"]["GUID"]
@@ -113,7 +153,10 @@ def plugin_create_workflow(context) -> None:
     assert config["plugins"]["associated"][guid]["name"] == "Gerber.MyCompany"
     assert config["plugins"]["associated"][guid]["version"] == "0.1.0"
     assert "Guid" not in project["Manifest"]["PrivateData"]["Gerber"]
-    _assert_plugin_creation_trace(context)
+    return project
+
+
+def _inspect_created_plugin_from_parent(context) -> None:
     context.app.press("ENTER")
     _expect_plugins_parent_menu(context)
     context.app.press("ESCAPE")
@@ -125,11 +168,217 @@ def plugin_create_workflow(context) -> None:
     context.app.wait_for_text("Missing")
 
 
+def _begin_plugin_creation_to_repository(context) -> None:
+    _open_plugins_parent_menu(context)
+    context.app.press("ENTER")
+    _submit_plugin_creation_field(context, "Module suffix", "MyCompany")
+    _submit_plugin_creation_field(context, "Description", "PTY example")
+    _submit_plugin_creation_field(context, "Command namespace", "mycompany")
+    context.app.wait_for_text("Plugin repository:")
+
+
+def _choose_custom_plugin_repository(context) -> None:
+    context.app.expect_selected_suggestion_highlighted("1. PSGallery (default)")
+    context.app.press("DOWN")
+    context.app.expect_selected_suggestion_highlighted("2. Another repository")
+    context.app.press("ENTER")
+    context.app.wait_for_text("Repository name")
+
+
+def _select_custom_plugin_repository(context, invalid_name: bool = False) -> None:
+    _choose_custom_plugin_repository(context)
+    if invalid_name:
+        _submit_plugin_creation_field(context, "Repository name", "")
+        context.app.wait_for_text("Enter a repository name")
+    _submit_plugin_creation_field(context, "Repository name", PLUGIN_REPOSITORY_NAME)
+    context.app.wait_for_text("Repository URI")
+
+
+def _assert_plugin_repository_choice_trace(context, value: str) -> None:
+    records = [json.loads(line) for line in context.app.prompt_trace_text().splitlines()]
+    choices = [record for record in records
+               if record["Event"] == "numbered-submit"
+               and record["Data"].get("Prompt") == "Plugin repository"]
+    assert choices[-1]["Data"]["Value"] == value
+    events = [record["Event"] for record in records]
+    chosen = records.index(choices[-1])
+    for event in ("plugin-create-validation-started", "plugin-create-validation-passed",
+                  "plugin-approval-persisted", "plugin-create-completed"):
+        chosen = events.index(event, chosen + 1)
+
+
+def _create_plugin_with_custom_repository(context, uri: str, invalid_uri: str = "", invalid_name: bool = False) -> None:
+    _start_plugin_creation_session(context)
+    _begin_plugin_creation_to_repository(context)
+    _select_custom_plugin_repository(context, invalid_name)
+    if invalid_uri:
+        _submit_plugin_creation_field(context, "Repository URI", invalid_uri)
+        context.app.wait_for_text("Enter an absolute repository URI")
+    _submit_plugin_creation_field(context, "Repository URI", uri)
+    _finish_plugin_creation(context)
+    _assert_custom_plugin_repository(context, uri or PLUGIN_REPOSITORY_PLACEHOLDER)
+    if invalid_uri:
+        _assert_plugin_repository_recovery_trace(context)
+    if invalid_name:
+        _assert_plugin_repository_recovery_trace(context, "RepositoryName")
+    context.app.press("ENTER")
+    _expect_plugins_parent_menu(context)
+
+
+def _assert_custom_plugin_repository(context, uri: str) -> None:
+    project = _assert_created_plugin_lifecycle(context)
+    metadata = project["Manifest"]["PrivateData"]["Gerber"]
+    assert metadata["Repository"] == {"Name": PLUGIN_REPOSITORY_NAME, "Uri": uri}
+    assert "RepositoryUri" not in metadata
+    assert "Update" not in metadata
+    context.app.wait_for_text(f"Repository: {PLUGIN_REPOSITORY_NAME}")
+    context.app.wait_for_text(uri)
+    if uri == PLUGIN_REPOSITORY_PLACEHOLDER:
+        context.app.wait_for_text("Replace Manifest.PrivateData.Gerber.Repository.Uri")
+        context.app.wait_for_text("before remote publishing or updates.")
+    _assert_plugin_repository_choice_trace(context, "Other")
+
+
+def _assert_plugin_repository_recovery_trace(context, field: str = "RepositoryUri") -> None:
+    records = [json.loads(line) for line in context.app.prompt_trace_text().splitlines()]
+    rejected = [record for record in records
+                if record["Event"] == "plugin-create-input-rejected"
+                and record["Data"].get("Field") == field]
+    assert len(rejected) == 1
+    assert rejected[0]["Data"] == {"Field": field}
+    events = [record["Event"] for record in records]
+    assert records.index(rejected[0]) < events.index("plugin-create-validation-started")
+
+
+@scenario(
+    "plugin-create-custom-repository",
+    title="Plugin create known custom repository metadata and approval",
+    categories=("core", "plugin-create", "plugins", "navigation"),
+    metadata=ScenarioMetadata(
+        commands=("plugins", "plugins create"),
+        workflows=("command:plugins create",),
+        coverage=("dispatch", "workflow", "navigation", "rendering"),
+    ),
+)
+def plugin_create_custom_repository(context) -> None:
+    _create_plugin_with_custom_repository(context, PLUGIN_REPOSITORY_URI)
+
+
+@scenario(
+    "plugin-create-unknown-repository",
+    title="Plugin create explicit unknown repository placeholder and replacement guidance",
+    categories=("core", "plugin-create", "plugins", "navigation"),
+    metadata=ScenarioMetadata(
+        commands=("plugins", "plugins create"),
+        workflows=("command:plugins create",),
+        coverage=("dispatch", "workflow", "navigation", "rendering"),
+    ),
+)
+def plugin_create_unknown_repository(context) -> None:
+    _create_plugin_with_custom_repository(context, "")
+
+
+@scenario(
+    "plugin-create-repository-recovery",
+    title="Plugin create rejects unsafe repository URI in place before approval",
+    categories=("core", "plugin-create", "plugins", "recovery", "navigation"),
+    metadata=ScenarioMetadata(
+        commands=("plugins", "plugins create"),
+        workflows=("command:plugins create",),
+        coverage=("dispatch", "workflow", "navigation", "rendering", "error-recovery"),
+    ),
+)
+def plugin_create_repository_recovery(context) -> None:
+    _create_plugin_with_custom_repository(context, PLUGIN_REPOSITORY_URI, "https://example.org/feed?invalid=1")
+
+
+@scenario(
+    "plugin-create-repository-name-recovery",
+    title="Plugin create blank custom name recovers locally before its URI",
+    categories=("core", "plugin-create", "plugins", "recovery", "navigation"),
+    metadata=ScenarioMetadata(
+        commands=("plugins", "plugins create"),
+        workflows=("command:plugins create",),
+        coverage=("dispatch", "workflow", "navigation", "rendering", "error-recovery"),
+    ),
+)
+def plugin_create_repository_name_recovery(context) -> None:
+    _create_plugin_with_custom_repository(context, PLUGIN_REPOSITORY_URI, invalid_name=True)
+
+
+def _cancel_plugin_creation_at_repository(context, custom: bool, name_only: bool = False) -> None:
+    _start_plugin_creation_session(context)
+    config_path = context.app.runtime_paths.scenario_root / "GerberCore.json"
+    before = config_path.read_text()
+    _begin_plugin_creation_to_repository(context)
+    if custom:
+        if name_only:
+            _choose_custom_plugin_repository(context)
+        else:
+            _select_custom_plugin_repository(context)
+    context.app.press("ESCAPE")
+    _expect_plugins_parent_menu(context)
+    assert config_path.read_text() == before
+    assert not (context.app.runtime_paths.scenario_root / "Gerber.MyCompany").exists()
+    assert not list(context.app.runtime_paths.scenario_root.glob(".gerber-create-*"))
+    _assert_plugin_repository_cancel_trace(context, custom)
+
+
+def _assert_plugin_repository_cancel_trace(context, custom: bool) -> None:
+    events = [json.loads(line)["Event"] for line in context.app.prompt_trace_text().splitlines()]
+    assert ("prompt-escape" if custom else "numbered-cancel") in events
+    assert "plugin-create-validation-started" not in events
+    assert "plugin-create-completed" not in events
+
+
+@scenario(
+    "plugin-create-repository-cancel",
+    title="Plugin create repository chooser Escape preserves configuration and files",
+    categories=("core", "plugin-create", "plugins", "navigation"),
+    metadata=ScenarioMetadata(
+        commands=("plugins", "plugins create"),
+        workflows=("command:plugins create",),
+        coverage=("dispatch", "workflow", "navigation", "rendering"),
+    ),
+)
+def plugin_create_repository_cancel(context) -> None:
+    _cancel_plugin_creation_at_repository(context, False)
+
+
+@scenario(
+    "plugin-create-repository-uri-cancel",
+    title="Plugin create custom URI Escape preserves configuration and files",
+    categories=("core", "plugin-create", "plugins", "navigation"),
+    metadata=ScenarioMetadata(
+        commands=("plugins", "plugins create"),
+        workflows=("command:plugins create",),
+        coverage=("dispatch", "workflow", "navigation", "rendering"),
+    ),
+)
+def plugin_create_repository_uri_cancel(context) -> None:
+    _cancel_plugin_creation_at_repository(context, True)
+
+
+@scenario(
+    "plugin-create-repository-name-cancel",
+    title="Plugin create custom name Escape preserves configuration and files",
+    categories=("core", "plugin-create", "plugins", "navigation"),
+    metadata=ScenarioMetadata(
+        commands=("plugins", "plugins create"),
+        workflows=("command:plugins create",),
+        coverage=("dispatch", "workflow", "navigation", "rendering"),
+    ),
+)
+def plugin_create_repository_name_cancel(context) -> None:
+    _cancel_plugin_creation_at_repository(context, True, name_only=True)
+
+
 def approve_synthetic_plugin(context) -> None:
     context.app.wait_for_text("Unknown Gerber plugin detected")
     context.app.wait_for_text(PLUGIN_GUID)
     context.app.expect_selected_suggestion("1. Decline")
     context.app.press("DOWN")
+    context.app.wait_for_text("  ❯ 2. Approve")
     context.app.expect_selected_suggestion("2. Approve")
     context.app.press("ENTER")
     context.app.wait_for_prompt()
@@ -189,7 +438,7 @@ def _select_plugins_list_from_parent(context) -> None:
 def _return_to_root_from_plugins_parent(context) -> None:
     time.sleep(0.7)
     context.app.press("ESCAPE")
-    context.app.wait_for_text("/branch")
+    context.app.wait_for_text("/tools")
     context.app.wait_for_prompt()
     context.app.expect_input("/")
     context.app.expect_selected_suggestion("/exit")
@@ -203,7 +452,6 @@ def _return_to_root_from_plugins_parent(context) -> None:
         commands=(
             "repository empty-text",
             "repository explode",
-            "repository fixture-ado",
             "repository fixture-api",
             "repository fixture-status",
         ),
@@ -215,10 +463,9 @@ def synthetic_plugin_discovery(context) -> None:
     context.app.start(enable_synthetic_plugin=True)
     approve_synthetic_plugin(context)
     context.app.type("/repository")
-    context.app.expect_suggestion("/repository create")
+    context.app.expect_text_absent("/repository create")
     context.app.expect_suggestion("/repository empty-text")
     context.app.expect_suggestion("/repository explode")
-    context.app.expect_suggestion("/repository fixture-ado")
     context.app.expect_suggestion("/repository fixture-api")
     context.app.expect_suggestion("/repository fixture-status")
     context.app.expect_text_absent("/synthetic")
@@ -289,7 +536,7 @@ def synthetic_plugin_empty_text_regression(context) -> None:
 @scenario(
     "synthetic-plugin-api-contract",
     title="Generic Plugin API shared capability contract",
-    categories=("plugin", "synthetic", "credentials", "clipboard"),
+    categories=("plugin", "synthetic", "credentials", "clipboard", "configuration"),
     metadata=ScenarioMetadata(
         commands=("repository fixture-api",),
         workflows=("command:repository fixture-api", "plugin-api:shared-capabilities"),
@@ -303,68 +550,16 @@ def synthetic_plugin_api_contract(context) -> None:
     context.app.type("/repository fixture-api")
     context.app.press("ENTER")
     context.app.wait_for_text("Synthetic Plugin API contract passed.")
+    configuration_path = context.app.runtime_paths.scenario_root / "Gerber.TerminalFixture.json"
+    assert json.loads(configuration_path.read_text(encoding="utf-8-sig")) == {
+        "fixture": "generic-json-contract"
+    }
     credential_state = context.app.credential_state()
     assert credential_state["credentials"] == {}, credential_state
     assert context.app.clipboard_state()["values"] == [
         {"value": "fixture-api-ok", "length": len("fixture-api-ok")}
     ]
     assert_no_secret_leak(context.app, PLUGIN_SECRET)
-
-
-@scenario(
-    "synthetic-plugin-ado-contract",
-    title="Generic Plugin API ADO contract",
-    categories=("plugin", "synthetic", "ado"),
-    metadata=ScenarioMetadata(
-        commands=("repository fixture-ado",),
-        workflows=("command:repository fixture-ado", "plugin-api:ado"),
-        coverage=("dispatch", "workflow", "navigation", "rendering"),
-    ),
-)
-def synthetic_plugin_ado_contract(context) -> None:
-    seed_ado_state(context)
-    fixture = strict_http_fixture(
-        [
-            {
-                "method": "Get",
-                "uri": "https://dev.azure.com/terminal/_apis/projects?api-version=7.0",
-                "response": {"value": [{"id": "terminal", "name": "TerminalProject"}]},
-            }
-        ]
-    )
-    context.app.start(enable_synthetic_plugin=True, http_fixture=fixture)
-    approve_synthetic_plugin(context)
-    context.app.type("/repository fixture-ado")
-    context.app.press("ENTER")
-    context.app.wait_for_text("Synthetic Plugin API ADO contract passed for TerminalProject.")
-    request_list = context.app.http_state()["requests"]
-    assert len(request_list) == 1, request_list
-    assert_no_secret_leak(context.app, ADO_PAT)
-
-
-@scenario(
-    "synthetic-plugin-ado-recovery",
-    title="Generic Plugin API ADO failure recovery",
-    categories=("plugin", "synthetic", "ado", "recovery"),
-    metadata=ScenarioMetadata(
-        commands=("repository fixture-ado",),
-        workflows=("command:repository fixture-ado", "plugin-api:ado-failure"),
-        coverage=("error-recovery",),
-    ),
-)
-def synthetic_plugin_ado_recovery(context) -> None:
-    seed_ado_state(context)
-    context.app.start(
-        enable_synthetic_plugin=True,
-        http_fixture=strict_http_fixture([]),
-    )
-    approve_synthetic_plugin(context)
-    context.app.type("/repository fixture-ado")
-    context.app.press("ENTER")
-    context.app.wait_for_text("Unexpected Gerber Core terminal HTTP request.")
-    context.app.press("ENTER")
-    context.app.wait_for_prompt()
-    assert_no_secret_leak(context.app, ADO_PAT)
 
 
 @scenario(

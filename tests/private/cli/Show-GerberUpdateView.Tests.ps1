@@ -7,6 +7,12 @@ BeforeAll {
         'update/Get-GerberCoreUpdateState', 'update/Invoke-GerberCoreUpdateInstall',
         'update/Show-GerberCoreUpdateSummary', 'update/Test-GerberUpdateInteractive', 'update/Format-GerberCoreUpdateOverview'
     )) { . "$root/src/private/$path.ps1" }
+    function Resolve-GerberPluginUpdateStateList {
+    }
+    function Show-GerberUpdateBatchView {
+        param($CoreState, $PluginItemList, $Interactive)
+        $null = $CoreState, $PluginItemList, $Interactive
+    }
 }
 
 Describe 'Show-GerberUpdateView' -Tag 'G4A7' {
@@ -28,11 +34,34 @@ Describe 'Show-GerberUpdateView' -Tag 'G4A7' {
         Mock Start-GerberScreen {}
         Mock Write-GerberPromptTrace {}
         Mock Read-GerberNumberedMenuPrompt { 'continue' }
+        Mock Resolve-GerberPluginUpdateStateList {
+            @()
+        }
+        Mock Show-GerberUpdateBatchView {
+        }
     }
 
     AfterEach { Remove-Variable GerberStartupUpdateState -Scope Script -ErrorAction SilentlyContinue }
 
     Context 'explicit Core update workflow' {
+        It 'delegates plugin rows with the single fresh Core state, including in noninteractive mode' -Tag 'G4A9UI' -ForEach @($true, $false) {
+            $interactiveMode = $_
+            Mock Test-GerberUpdateInteractive {
+                $interactiveMode
+            }
+            Mock Resolve-GerberPluginUpdateStateList {
+                [pscustomobject]@{
+                    Kind = 'Plugin'; State = $script:state
+                }
+            }
+            Show-GerberUpdateView
+            Should -Invoke Get-GerberCoreUpdateState -Times 1
+            Should -Invoke Show-GerberUpdateBatchView -Times 1 -ParameterFilter {
+                [object]::ReferenceEquals($CoreState, $script:state) -and $PluginItemList.Count -eq 1 -and $Interactive -eq $interactiveMode
+            }
+            Should -Invoke Read-GerberConfirmationPrompt -Times 0
+        }
+
         It 'discovers afresh on every invocation and defaults to cancel with explicit trust/license text' {
             Show-GerberUpdateView
             Show-GerberUpdateView

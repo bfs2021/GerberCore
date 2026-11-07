@@ -1,19 +1,29 @@
 BeforeAll {
     $root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
     . "$root/src/private/update/Invoke-GerberUpdateProbe.ps1"
+    . "$root/src/private/update/Close-GerberUpdateProbe.ps1"
+    . "$root/src/private/update/Wait-GerberUpdateProbeOutput.ps1"
 }
 
 Describe 'Invoke-GerberUpdateProbe' -Tag 'G4A7' {
     BeforeEach {
         $script:request = [pscustomobject]@{
-            Module = [pscustomobject]@{ ModuleBase = $TestDrive }; Repository = 'IsolatedFeed'; Policy = @{}
+            Module     = [pscustomobject]@{
+                ModuleBase = $TestDrive
+            }
+            Repository = 'IsolatedFeed'
+            Policy     = @{
+            }
         }
     }
 
     Context 'isolated startup process' {
         It 'serializes only module identity, never caller-selected repository policy or credentials' {
             $request.Repository = 'HostileFeed'
-            $request.Policy = @{ Channel = 'IncludePrerelease'; Scope = 'AllUsers' }
+            $request.Policy = @{
+                Channel = 'IncludePrerelease'
+                Scope   = 'AllUsers'
+            }
             $command = Get-GerberUpdateProbeCommand $request
             $encoded = [regex]::Match($command, '\$payload = ''([^'']+)''').Groups[1].Value
             $payloadText = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
@@ -47,11 +57,19 @@ Describe 'Invoke-GerberUpdateProbe' -Tag 'G4A7' {
         }
 
         It 'contains offline child failure and malformed output without exposing stderr' -ForEach @(
-            @{ scriptText = "throw 'raw-secret-offline'" },
-            @{ scriptText = "'malformed raw-secret-output'" },
-            @{ scriptText = "'{`"Status`":`"Unconfigured`"}'" }
+            @{
+                scriptText = "throw 'raw-secret-offline'"
+            },
+            @{
+                scriptText = "'malformed raw-secret-output'"
+            },
+            @{
+                scriptText = "'{`"Status`":`"Unconfigured`"}'"
+            }
         ) {
-            Mock Get-GerberUpdateProbeScript { $scriptText }
+            Mock Get-GerberUpdateProbeScript {
+                $scriptText
+            }
             $result = Invoke-GerberUpdateProbe -Request $request
             $result.Status | Should -Be 'Unavailable'
             ($result | ConvertTo-Json) | Should -Not -Match 'raw-secret'

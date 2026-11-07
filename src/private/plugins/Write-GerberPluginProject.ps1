@@ -19,6 +19,9 @@ function Write-GerberPluginProjectMetadataFile {
     $project = Get-Content -LiteralPath $projectPath -Raw | ConvertFrom-Json -AsHashtable
     $project.Description = $Request.Description
     $project.Manifest.Author = $Request.Suffix
+    if ($Request.PSObject.Properties['Repository']) {
+        $project.Manifest.PrivateData.Gerber.Repository = $Request.Repository
+    }
     $json = $project | ConvertTo-Json -Depth 10
     [System.IO.File]::WriteAllText($projectPath, $json.TrimEnd() + "`n")
 }

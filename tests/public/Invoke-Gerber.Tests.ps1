@@ -8,7 +8,6 @@ Describe 'Invoke-Gerber' -Tag 'G4A7' {
         Mock Clear-GerberCommandRegistry {}
         Mock Initialize-GerberCommandRegistry {}
         Mock Show-GerberMenu {}
-        Mock Resolve-GerberAdoConnectionReadiness {}
         Mock Invoke-GerberStartupUpdateCheck { [pscustomobject]@{ Status = 'Unavailable' } }
 
         Invoke-Gerber
@@ -16,7 +15,6 @@ Describe 'Invoke-Gerber' -Tag 'G4A7' {
         Should -Invoke Clear-GerberCommandRegistry -Times 2
         Should -Invoke Initialize-GerberCommandRegistry -Times 1
         Should -Invoke Show-GerberMenu -Times 1
-        Should -Invoke Resolve-GerberAdoConnectionReadiness -Times 0
     }
 
     It 'checks Core once per application start rather than on import and clears presentation state' {

@@ -4,6 +4,7 @@ function Get-GerberUserConfiguration {
     param()
 
     $configPath = Resolve-GerberUserConfigPath
+    Invoke-GerberLegacyConfigurationTransition -CorePath $configPath
     if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
         return @{
             schemaVersion = 1
@@ -29,6 +30,8 @@ function Get-GerberUserConfiguration {
             "Gerber user configuration file '$configPath' is empty. Add a JSON object with 'schemaVersion': 1."
         )
     }
+
+    Assert-GerberJsonConfigurationText -Json $json -Path $configPath
 
     if (-not (Test-GerberUserConfigurationJsonObjectText -Json $json)) {
         throw [System.IO.InvalidDataException]::new(

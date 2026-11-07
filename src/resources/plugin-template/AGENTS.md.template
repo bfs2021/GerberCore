@@ -55,6 +55,14 @@ are not language-enforced private. Shared helpers belong in `src/private/`.
 
 ## Identity and lifecycle
 
+`Manifest.PrivateData.Gerber.Repository` is the plugin's repository descriptor:
+`Name` is the label shown by `/update list`; `Uri` is the canonical absolute
+endpoint sent to PSModuleUpdate. The generated default is `PSGallery` with
+`https://www.powershellgallery.com/api/v2`. Preserve the custom name and replace
+`REPLACE_WITH_REPOSITORY_URI` in `Repository.Uri` before remote publishing or
+updates. Do not store credentials, query parameters or fragments. Invalid
+explicit metadata never falls back to Gallery.
+
 `project.json` **Manifest.GUID** is the permanent identity: `{{Guid}}`.
 Keep it stable across versions. Changing it creates a new approval and secret
 identity, not an update. Nova propagates it into the built module manifest.
@@ -107,7 +115,7 @@ Use the working `/{{Namespace}} hello` example, not a private Core repository:
 
 ## Public Plugin API v1 contract
 
-The injected context has `ApiVersion`, `PluginId`, `UI`, `Ado`, `Secrets` and
+The injected context has `ApiVersion`, `PluginId`, `Configuration`, `UI`, `Http`, `Secrets` and
 `Clipboard`. Operations are **scriptblocks**, invoked with `&`, not cmdlets
 or object methods. The example needs only:
 
@@ -124,30 +132,34 @@ Available capability families (signatures show positional argument order):
 | `UI` | `ReadSubcommand(name, command, table)`, `ShowTextBlock(title, text)`, `ShowScreenLines(title, lines)`, `StartScreen(name)`, `WriteScreenLine(text)`, `WaitForContinue()`. |
 | `UI` input | `ReadCommand(prompt, suggestionMode, inputMode, promptContext, trimResult)`, `ReadSecretText(prompt)`, `ReadNumberedMenuSelection(prompt, title, text, items)`, `ReadNumberedMenuPrompt(prompt, title, text, items)`, `ReadCheckboxMenuPrompt(request)`, `ReadConfirmationPrompt(prompt, title, text, options)`. |
 | `UI` feedback | `WriteProgressBar(current, total, prefix, overwritePreviousRender)`, `WritePromptTrace(eventName, data)`. |
-| `Ado` connection/GET | `OpenConnection(commandLabel, profileName = '')`, `NewProjectUri(connection, relativePath, queryMap)`, `InvokeGet(connection, uri, requestLabel)`. |
-| `Ado` pull requests | `ResolvePullRequestReference(connection, inputText)`, `GetPullRequest(connection, reference)`, `GetPullRequestChangedFileList(connection, pullRequest)`, `GetPullRequestFileContent(connection, pullRequest, path, allowMissing = false)`, `GetPullRequestBuildValidationStatus(connection, pullRequest)`. |
-| `Ado` pipelines | `GetPendingApprovalList(connection, environmentId)`, `GetEnvironmentList(connection)`, `ResolvePipelineDefinitionFromUrl(connection, pipelineUrl)`, `GetPipelineRunList(request)`, `StartPipelineRun(request)`, `WaitPipelineRunCompletion(request)`, `ApprovePipelineApproval(connection, approvalId, comment)`, `StopPipelineRun(connection, buildId)`. |
-| `Ado` build metadata | `GetBuildTagList(connection, buildId)`, `AddBuildTagIfMissing(connection, buildId, tag)`, `RemoveBuildTag(connection, buildId, tag)`, `AddBuildRetentionLeaseIfMissing(connection, definitionId, buildId)`, `GetBuildRunUrl(connection, buildId)`. |
-| `Ado` work items | `GetWorkItemIdFromUrl(url)`, `GetWorkItemFieldMap(request)`, `UpdateWorkItemFields(request)`. |
+| `Configuration` | `Read()`, `Save(value)` for this registered module's own JSON file. |
+| `UI` platform | `IsInteractive()`, `IsEscapeException(exception)`, `GetEscapeException()`, `ReadSecureValue(prompt)`, `WriteStyledPromptText(text, style)`, `GetPromptColorPair()`, `ShowMenuError(message)`. |
+| `Http` metadata | `GetConfiguration()`, `GetTransportFailureHint(exception)`, `IsTimeoutFailure(exception)`. No authenticated product transport. |
 | `Secrets` | `EnsureReady(actionLabel, screenTitle)`, `Test(pathSegments)`, `GetText(pathSegments)`, `Set(pathSegments, secret)`, `Remove(pathSegments)`. |
 | `Clipboard` | `CopyText(value)`. |
 
-For an optional ADO command:
+For plugin-owned settings:
 
 ```powershell
-$connection = & $Gerber.Ado.OpenConnection '/{{Namespace}} status'
-$uri = & $Gerber.Ado.NewProjectUri $connection '_apis/build/definitions' ([ordered]@{})
-$definitions = & $Gerber.Ado.InvokeGet $connection $uri 'Read build definitions'
+$settings = & $Gerber.Configuration.Read
+if ($null -eq $settings) { $settings = @{ preferredView = 'summary' } }
+& $Gerber.Configuration.Save $settings
 ```
 
-`OpenConnection` without a profile uses the default/readiness flow; an explicit
-profile selects only that profile, never silently falls back. The returned
-connection exposes non-sensitive metadata such as `ProfileName`, `ServerUri`,
-`CollectionUri`, `ProjectName` and `ProjectUri`; it contains no PAT/token.
-GET and mutations obtain authentication lazily inside Core. Request-object
-operations bind a `Connection`; their additional operation-specific fields
-must be verified against the host's public API reference before use. Do not
-guess request fields or treat this capability inventory as a request schema.
+Configuration access is bound to the registered module name: `{{Name}}.json`
+beside the platform-resolved `GerberCore.json`. Callers cannot select paths,
+Core data or other plugins' files. Missing configuration returns null without
+creation; the plugin owns defaults and JSON structure. Invalid JSON is reported,
+not overwritten. Serialization/publication failures preserve the previous file.
+Do not put secrets in JSON; Core does not scan its contents for secrets.
+`UI.ReadSubcommand` accepts an optional fourth boolean for default Enter
+selection. Preserve shared navigation and check `UI.IsInteractive` before
+setup. Product plugins own authentication, REST, retries and pagination;
+there is no Core `Ado` capability.
+When using the new Configuration or platform UI/Http operations, declare
+`MinimumGerberVersion` at least `0.2.1-preview02`. The hello example uses the
+older UI subset; this guide does not change the generator's separate minimum
+version default.
 
 Secrets use logical string-array paths owned by this manifest GUID:
 `& $Gerber.Secrets.GetText @('service', 'key')`. Never access Core config,

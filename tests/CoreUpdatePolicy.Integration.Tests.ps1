@@ -1,6 +1,9 @@
 # Built-module integration: persistence, PMU policy and startup transport span config/update boundaries.
+# Nova APIs are unused here; isolate their import cost without changing the real Core probe or its budget.
 BeforeAll {
     $root = Split-Path -Parent $PSScriptRoot
+    . (Join-Path $PSScriptRoot 'TestHelpers/Initialize-GerberCorePolicyNovaFixture.ps1')
+    $novaManifest = Initialize-GerberCorePolicyNovaFixture -DestinationRoot $TestDrive
     $script:policyModule = Import-Module "$root/dist/Gerber/Gerber.psd1" -Force -PassThru
     $script:originalPolicyConfigPath = $env:GERBER_CONFIG_PATH
     $script:realProbeScript = & $script:policyModule { Get-GerberUpdateProbeScript }
@@ -15,6 +18,7 @@ $fixtureModule = Import-Module '__MANIFEST__' -PassThru
     }
 }
 '@.Replace('__MANIFEST__', "$root/dist/Gerber/Gerber.psd1".Replace("'", "''"))
+    $script:probePrelude = "Import-Module '$($novaManifest.Replace("'", "''"))' -ErrorAction Stop`n$script:probePrelude"
 }
 
 Describe 'Core update policy integration' -Tag 'CoreUpdatePolicy' {

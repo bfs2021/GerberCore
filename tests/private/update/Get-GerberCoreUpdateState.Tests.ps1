@@ -1,6 +1,7 @@
 BeforeAll {
     $root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
-    foreach ($name in @('Get-GerberCoreUpdateState', 'Resolve-GerberCoreUpdateRequest', 'Get-GerberUpdateFailureMessage')) {
+    foreach ($name in @('Get-GerberCoreUpdateState', 'Resolve-GerberUpdateDisposition',
+        'Resolve-GerberCoreUpdateRequest', 'Get-GerberUpdateFailureMessage')) {
         . "$root/src/private/update/$name.ps1"
     }
     . "$root/src/private/credentials/Get-GerberCredential.ps1"

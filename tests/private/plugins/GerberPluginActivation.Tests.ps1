@@ -21,10 +21,10 @@ Describe 'Plugin enable and disable lifecycle' -Tag 'PluginTransactions' {
     Context 'Root command ordering after activation changes' {
         It 'keeps reserved commands first and places plugin commands alphabetically' {
             $null = Enable-GerberPlugin -Guid $script:testPluginGuid
-            Get-GerberActionList | Should -Be @('exit', 'help', 'plugins', 'update', 'branch', 'example', 'list', 'pipelines', 'repository', 'secrets', 'tools')
+            Get-GerberActionList | Should -Be @('exit', 'help', 'plugins', 'update', 'example', 'secrets', 'tools')
 
             Disable-GerberPlugin -Guid $script:testPluginGuid
-            Get-GerberActionList | Should -Be @('exit', 'help', 'plugins', 'update', 'branch', 'list', 'pipelines', 'repository', 'secrets', 'tools')
+            Get-GerberActionList | Should -Be @('exit', 'help', 'plugins', 'update', 'secrets', 'tools')
         }
     }
 }

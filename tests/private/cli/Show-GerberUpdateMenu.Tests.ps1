@@ -13,6 +13,15 @@ Describe 'Show-GerberUpdateMenu' -Tag 'CoreUpdatePolicy' {
     }
 
     Context 'shared menu and noninteractive dispatch' {
+        It 'describes both Core and plugin discovery without prompting in noninteractive mode' -Tag 'G4A9UI' {
+            Show-GerberUpdateMenu ([pscustomobject]@{
+                Arguments = @()
+            })
+            Should -Invoke Write-GerberScreenLine -ParameterFilter {
+                $Text -match 'Core and.*plugin' -and $Text -match 'shared channel'
+            }
+        }
+
         It 'uses the standard update submenu in an interactive session' {
             Mock Test-GerberUpdateInteractive { $true }
             Show-GerberUpdateMenu ([pscustomobject]@{ Arguments = @() })

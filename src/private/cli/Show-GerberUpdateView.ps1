@@ -4,12 +4,35 @@ function Show-GerberUpdateView {
     Write-GerberScreenLine -Text 'Checking Core updates...'
     $interactive = Test-GerberUpdateInteractive
     $state = Get-GerberCoreUpdateState
-    Show-GerberCoreUpdateSummary -State $state
-    Write-GerberPromptTrace -EventName 'update-discovery' -Data @{ Status = $state.Status }
-    if (-not $interactive) { return }
-    $restartText = if ($state.Status -eq 'Available') { Invoke-GerberUpdateConfirmation $state
-    } elseif ($state.Status -eq 'RestartRequired') { $state.Message }
-    if ($restartText) { return Show-GerberCoreUpdateRestartChoice -Text $restartText }
+    $pluginItems = @(Resolve-GerberPluginUpdateStateList)
+    if ($pluginItems.Count -gt 0) {
+        return Show-GerberUpdateBatchView -CoreState $state -PluginItemList $pluginItems -Interactive $interactive
+    }
+    Show-GerberLegacyCoreUpdateView -State $state -Interactive $interactive
+}
+
+function Show-GerberLegacyCoreUpdateView {
+    param([object]$State, [bool]$Interactive)
+    Show-GerberCoreUpdateSummary -State $State
+    Write-GerberPromptTrace -EventName 'update-discovery' -Data @{
+        Status = $State.Status
+    }
+    if (-not $Interactive) {
+        return
+    }
+    Complete-GerberLegacyCoreUpdateView -State $State
+}
+
+function Complete-GerberLegacyCoreUpdateView {
+    param([object]$State)
+    $restartText = if ($State.Status -eq 'Available') {
+        Invoke-GerberUpdateConfirmation $State
+    } elseif ($State.Status -eq 'RestartRequired') {
+        $State.Message
+    }
+    if ($restartText) {
+        return Show-GerberCoreUpdateRestartChoice -Text $restartText
+    }
     Wait-GerberContinue
 }
 

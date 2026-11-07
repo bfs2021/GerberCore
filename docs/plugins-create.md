@@ -10,6 +10,9 @@ shared text inputs and Escape navigation; it is not a general-purpose generator.
 | Module suffix | `MyCompany` | Creates **Gerber.MyCompany**. `Gerber.` is fixed, not editable. Use letters and numbers, starting with a letter. |
 | Description | `My local tools` | Stored as the project and generated manifest description. |
 | Command namespace | `mycompany` | A real, lowercase slash namespace. Letters, numbers and hyphens are allowed, starting with a letter. An already registered namespace is rejected. |
+| Plugin repository | Enter for **PSGallery**, or select **Another repository** | PSGallery is preselected and writes `Repository.Name = PSGallery` and `Repository.Uri = https://www.powershellgallery.com/api/v2`, without more repository questions. |
+| Repository name (another repository only) | `ExampleFeed` | Required display label in `Manifest.PrivateData.Gerber.Repository.Name`. Blank input is corrected at this prompt. |
+| Repository URI (another repository only) | `https://packages.example.org/feed`, or Enter if unknown | Canonical endpoint in `Manifest.PrivateData.Gerber.Repository.Uri`. Enter writes the explicit invalid placeholder `REPLACE_WITH_REPOSITORY_URI`. |
 | Destination parent | Enter, or an existing directory | Defaults to the current working directory. The final project is always a new **parent/Gerber.MyCompany** child. |
 
 Suffixes and namespaces are limited to 64 characters. Names cannot contain dots,
@@ -18,14 +21,37 @@ must not contain `..` path segments. Existing destinations are never overwritten
 including when another process creates the destination during validation.
 Invalid input can be corrected in place; a destination collision lets you choose
 another suffix or parent. `Esc` cancels through normal Gerber back navigation.
+The repository chooser appears after the namespace and before the destination.
+Known URIs must be absolute and must not contain credentials, query parameters or
+fragments. Invalid URI input stays at the prompt with correction guidance;
+`Esc` from the chooser, name or URI prompt cancels without creating a project.
+
+Generated metadata uses this object in `project.json`:
+
+```json
+{
+  "Repository": {
+    "Name": "ExampleFeed",
+    "Uri": "https://packages.example.org/feed"
+  }
+}
+```
+
+Place it under `Manifest.PrivateData.Gerber`; do not add an `Update` intermediary
+or credentials. `/update list` shows the name and sends the URI to PMU.
 
 Each field has a heading, description, example and surrounding spacing. The
 destination shows the actual current directory and proposed child, not a hardcoded
 example path. Enter accepts that parent; an explicit parent still gets the child.
-The completion screen shows the actual Name, Version, Namespace, Location and GUID,
+The completion screen shows the actual Name, Version, Namespace, Location, GUID
+and repository name and URI,
 then Approval: Approved, Associated: Yes, Enabled: Yes and **Installed: No**.
 Its `cd` path is PowerShell-single-quoted (including escaped apostrophes), followed
 by local publish, restart and the actual namespaced hello command.
+An unknown-source summary explicitly requires replacing
+`Manifest.PrivateData.Gerber.Repository.Uri` before remote publishing or updates.
+Local build, tests and isolated local publish still work with the placeholder;
+it is not a usable repository URL.
 
 ## Required runtime toolchain
 
@@ -117,6 +143,17 @@ Do not duplicate it inside `PrivateData.Gerber`:
 }
 ```
 
+That example represents PSGallery selection: there is no `RepositoryUri` key,
+not an empty value or an explicit Gallery override. Another repository adds a
+direct `"RepositoryUri": "https://packages.example.org/feed"` entry inside
+`Manifest.PrivateData.Gerber`; no `Update` intermediary is generated. If the URI
+is unknown, replace `"RepositoryUri": "REPLACE_WITH_REPOSITORY_URI"` in
+`project.json` with the actual safe URI, then rebuild before remote publication
+or updates. Nova carries this metadata into the generated plugin manifest.
+Update discovery defaults to PSGallery only when the key is absent. An explicit
+placeholder, empty/relative URI, or unsafe URI is rejected without Gallery
+fallback or package lookup.
+
 The GUID above is illustrative; generation creates a unique one. The generated
 changelog starts with the product's Keep a Changelog/SemVer introduction,
 `[Unreleased]` and all six categories: Added, Changed, Deprecated, Removed, Fixed,
@@ -131,7 +168,7 @@ calls.
 
 **AGENTS.md** is the canonical agent-neutral guide: product/host boundaries,
 authored versus generated paths, permanent identity, lifecycle, concrete steps
-for adding/registering a handler and tests, the public UI/ADO/Secrets/Clipboard
+for adding/registering a handler and tests, the public Configuration/UI/Http/Secrets/Clipboard
 contract, Nova commands, coverage/analyzer/CodeScene expectations and docs.
 It is usable without access to private Core source.
 

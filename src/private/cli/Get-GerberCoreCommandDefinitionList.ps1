@@ -24,33 +24,9 @@ function Get-GerberCoreRootCommandDefinitionList {
             Subcommands = [ordered]@{}
         }
         [pscustomobject][ordered]@{
-            Name        = 'list'
-            Description = 'Open the interactive list menu'
-            Handler     = { param([pscustomobject]$Command) Show-GerberListView -Command $Command; return $false }
-            Subcommands = Get-GerberListCommandCatalog
-        }
-        [pscustomobject][ordered]@{
-            Name        = 'branch'
-            Description = 'Search repositories by branch'
-            Handler     = { param([pscustomobject]$Command) Show-GerberBranchView -Command $Command; return $false }
-            Subcommands = Get-GerberBranchCommandCatalog
-        }
-        [pscustomobject][ordered]@{
-            Name        = 'repository'
-            Description = 'Open the interactive repository menu'
-            Handler     = { param([pscustomobject]$Command) Show-GerberRepositoryView -Command $Command; return $false }
-            Subcommands = [ordered]@{}
-        }
-        [pscustomobject][ordered]@{
             Name        = 'plugins'
             Description = 'Show Gerber plugin status and manage plugin activation'
             Handler     = { param([pscustomobject]$Command) Show-GerberPluginsView -Command $Command; return $false }
-            Subcommands = [ordered]@{}
-        }
-        [pscustomobject][ordered]@{
-            Name        = 'pipelines'
-            Description = 'Open the interactive pipelines menu'
-            Handler     = { param([pscustomobject]$Command) Show-GerberPipelinesView -Command $Command; return $false }
             Subcommands = [ordered]@{}
         }
         [pscustomobject][ordered]@{
@@ -82,18 +58,6 @@ function Get-GerberCoreLeafCommandDefinitionList {
 
     return @(
         [pscustomobject][ordered]@{
-            Name        = 'list ado-agents'
-            Description = 'List Azure DevOps BUILD and DEPLOY agents'
-            Handler     = { param([pscustomobject]$Command) $null = $Command; Invoke-GerberListAdoAgentsCommand; return $false }
-            Subcommands = [ordered]@{}
-        }
-        [pscustomobject][ordered]@{
-            Name        = 'list ado-team-members'
-            Description = 'List Azure DevOps teams and members'
-            Handler     = { param([pscustomobject]$Command) $null = $Command; Invoke-GerberListAdoTeamMembersCommand; return $false }
-            Subcommands = [ordered]@{}
-        }
-        [pscustomobject][ordered]@{
             Name        = 'tools create-uuid'
             Description = 'Generate a UUID and copy it to the clipboard when possible'
             Handler     = { Show-GerberCreateUuidTool; return $false }
@@ -104,12 +68,6 @@ function Get-GerberCoreLeafCommandDefinitionList {
             Description = 'Open the Base64 text utility'
             Handler     = { param([pscustomobject]$Command) Show-GerberBase64Tool -Command $Command; return $false }
             Subcommands = Get-GerberBase64CommandCatalog
-        }
-        [pscustomobject][ordered]@{
-            Name        = 'repository create'
-            Description = 'Create a new repository from template'
-            Handler     = { param([pscustomobject]$Command) $null = $Command; Show-GerberRepositoryCreateView -Command $Command; return $false }
-            Subcommands = [ordered]@{}
         }
         [pscustomobject][ordered]@{
             Name        = 'plugins list'
@@ -136,12 +94,6 @@ function Get-GerberCoreLeafCommandDefinitionList {
             Subcommands = [ordered]@{}
         }
         Get-GerberCorePluginCreateCommandDefinition
-        [pscustomobject][ordered]@{
-            Name        = 'pipelines tags'
-            Description = 'Open the pipeline tag submenu'
-            Handler     = { param([pscustomobject]$Command) Show-GerberPipelinesTagsView -Command $Command; return $false }
-            Subcommands = Get-GerberPipelinesTagsCommandCatalog
-        }
         Get-GerberCoreUpdateLeafCommandDefinitionList
     )
 }
@@ -158,7 +110,7 @@ function Get-GerberCorePluginCreateCommandDefinition {
 function Get-GerberCoreUpdateCommandDefinition {
     [pscustomobject][ordered]@{
         Name = 'update'
-        Description = 'Open the Core update menu'
+        Description = 'Open the Core and plugin update menu'
         Handler = { param([pscustomobject]$Command) return [bool](Show-GerberUpdateMenu -Command $Command) }
         Subcommands = [ordered]@{}
     }
@@ -172,7 +124,7 @@ function Get-GerberCoreUpdateLeafCommandDefinitionList {
 function Get-GerberCoreUpdateListCommandDefinition {
     [pscustomobject][ordered]@{
         Name = 'update list'
-        Description = 'Check and install Gerber Core updates'
+        Description = 'Check and install Core and eligible plugin updates'
         Handler = { return [bool](Show-GerberUpdateView) }
         Subcommands = [ordered]@{}
     }
@@ -181,7 +133,7 @@ function Get-GerberCoreUpdateListCommandDefinition {
 function Get-GerberCoreUpdatePolicyCommandDefinition {
     [pscustomobject][ordered]@{
         Name = 'update policy'
-        Description = 'Choose the persistent Core update channel'
+        Description = 'Choose the persistent shared update channel'
         Handler = { Show-GerberUpdatePolicyView; return $false }
         Subcommands = [ordered]@{}
     }

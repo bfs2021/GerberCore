@@ -8,7 +8,7 @@ Describe 'Get-GerberPropertiesData' {
         $result = Get-GerberPropertiesData
 
         $result | Should -BeOfType [hashtable]
-        $result.Keys | Should -Contain 'ado'
+        $result.Keys | Should -Not -Contain 'ado'
         $result.HttpConnectionTimeoutSeconds | Should -BeOfType ([System.ValueType])
         $result.HttpOperationTimeoutSeconds | Should -BeOfType ([System.ValueType])
         $result.HttpConnectionTimeoutSeconds | Should -BeGreaterThan 0
@@ -18,11 +18,9 @@ Describe 'Get-GerberPropertiesData' {
     It 'keeps the bundled resource readable with the required generic sections' {
         $result = Get-GerberPropertiesData
 
-        $result.ado | Should -BeOfType [hashtable]
-        $result.ado.Keys | Should -Contain 'defaultApiVersion'
-        $result.ado.Keys | Should -Contain 'poolApiVersion'
-        $result.ado.Keys | Should -Contain 'policyEvaluationApiVersion'
-        $result.ado.Keys | Should -Not -Contain 'patEnvironmentVariable'
+        $result.Keys | Should -Contain 'HttpConnectionTimeoutSeconds'
+        $result.Keys | Should -Contain 'HttpOperationTimeoutSeconds'
+        $result.Keys | Should -Not -Contain 'patEnvironmentVariable'
     }
 
     It 'returns the project Properties.json path' {

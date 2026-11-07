@@ -1,11 +1,5 @@
 {
   "_description": "Hardcoded constants used across the Gerber project. Edit values here to update them globally.",
   "HttpConnectionTimeoutSeconds": 5,
-  "HttpOperationTimeoutSeconds": 15,
-  "ado": {
-    "_description": "Azure DevOps integration defaults. Connection profiles live in the user configuration file.",
-    "defaultApiVersion": "7.0",
-    "poolApiVersion": "7.1",
-    "policyEvaluationApiVersion": "7.1-preview.1"
-  }
+  "HttpOperationTimeoutSeconds": 15
 }

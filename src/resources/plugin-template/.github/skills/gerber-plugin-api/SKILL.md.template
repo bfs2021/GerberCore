@@ -1,6 +1,6 @@
 ---
 name: gerber-plugin-api
-description: Select and safely exercise Gerber public UI, ADO, secret and clipboard capabilities
+description: Select and safely exercise Gerber public configuration, UI, HTTP metadata, secret and clipboard capabilities
 ---
 
 # Use the public Gerber API
@@ -9,14 +9,15 @@ Read the self-contained public capability contract in
 [AGENTS.md](../../../AGENTS.md). Use this workflow before adding host integration.
 
 1. Inspect `(Test-GerberPluginBoundary -Path .).PublicApi` from installed Gerber,
-   then identify the supported `UI`, `Ado`, `Secrets` or `Clipboard` operation in
+   then identify the supported `Configuration`, `UI`, `Http`, `Secrets` or `Clipboard` operation in
    AGENTS.md. If a request schema or required capability is unspecified, verify
    the host's public reference or stop for clarification; never call Core internals.
 2. Invoke context operations as scriptblocks with `&`. Reuse the hello factory
    for closure lifetime and navigation. Prefer Core UI to direct console work.
-3. For ADO, obtain a connection through `Ado.OpenConnection`, bind it to later
-   operations and preserve explicit-profile behavior. Never retrieve a PAT or
-   read Core configuration. For secrets, use plugin-owned logical path segments.
+3. Read/save settings through identity-bound `Configuration.Read` and
+   `Configuration.Save`; own the JSON schema and defaults, never choose file
+   paths or read Core configuration. Use Secrets for tokens/passwords, not JSON.
+   Product transport and authentication belong to the plugin, not Core.
 4. Stub these public operations in unit tests, asserting arguments, errors and
    side effects without network/credentials. Use a supplied-context fixture in
    the built-module integration test.

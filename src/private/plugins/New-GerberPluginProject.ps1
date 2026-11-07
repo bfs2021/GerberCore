@@ -2,7 +2,7 @@ function New-GerberPluginProject {
     [CmdletBinding(SupportsShouldProcess)]
     param([pscustomobject]$Request)
 
-    $Request = Resolve-GerberPluginProjectRequest -Suffix $Request.Suffix -Description $Request.Description -Namespace $Request.Namespace -ParentPath $Request.ParentPath
+    $Request = Resolve-GerberPluginProjectCreationRequest -Request $Request
     if (-not $PSCmdlet.ShouldProcess($Request.Destination, 'Create, validate and approve Gerber plugin project')) {
         return
     }
@@ -15,6 +15,16 @@ function New-GerberPluginProject {
     }
 }
 
+function Resolve-GerberPluginProjectCreationRequest {
+    param([pscustomobject]$Request)
+
+    $inputMap = @{}
+    foreach ($property in $Request.PSObject.Properties) {
+        $inputMap[$property.Name] = $property.Value
+    }
+    return Resolve-GerberPluginProjectRequest -InputMap $inputMap
+}
+
 function Complete-GerberPluginProjectCreation {
     param([pscustomobject]$Request, [string]$Stage)
 
@@ -25,10 +35,21 @@ function Complete-GerberPluginProjectCreation {
     $project = Get-Content -LiteralPath (Join-Path $projectPath 'project.json') -Raw | ConvertFrom-Json
     [System.IO.Directory]::Move($projectPath, $Request.Destination)
     Complete-GerberPluginProjectApproval -Request $Request -Guid $guid -Version $project.Version
-    return [pscustomobject]@{
-        Name = $Request.Name; Version = $project.Version
-        Path = $Request.Destination; Guid = $guid; Namespace = $Request.Namespace
+    return Get-GerberPluginProjectCreationResult -Request $Request -Guid $guid -Version $project.Version
+}
+
+function Get-GerberPluginProjectCreationResult {
+    param([pscustomobject]$Request, [string]$Guid, [string]$Version)
+
+    $result = [pscustomobject]@{
+        Name = $Request.Name
+        Version = $Version
+        Path = $Request.Destination
+        Guid = $Guid
+        Namespace = $Request.Namespace
+        Repository = $Request.Repository
     }
+    return $result
 }
 
 function Complete-GerberPluginProjectApproval {

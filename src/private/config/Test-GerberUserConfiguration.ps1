@@ -34,7 +34,6 @@ function Test-GerberUserConfiguration {
     }
 
     $null = Test-GerberPluginUserConfiguration -Configuration $Configuration -Path $Path
-    $null = Test-GerberAdoUserConfiguration -Configuration $Configuration -Path $Path
     $null = Test-GerberCoreUpdateConfiguration -Configuration $Configuration -Path $Path
     return $true
 }

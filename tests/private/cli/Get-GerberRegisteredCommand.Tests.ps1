@@ -3,12 +3,12 @@ BeforeAll {
     Import-GerberSource -StartPath $PSScriptRoot
 }
 
-Describe 'Get-GerberRegisteredCommand' {
+Describe 'Get-GerberRegisteredCommand' -Tag 'ActiveCommandTree' {
     It 'returns a registered root command by name from the effective registry' {
-        $commandDefinition = Get-GerberRegisteredCommand -Name 'repository'
+        $commandDefinition = Get-GerberRegisteredCommand -Name 'tools'
 
-        $commandDefinition.Name | Should -Be 'repository'
-        $commandDefinition.Description | Should -Be 'Open the interactive repository menu'
+        $commandDefinition.Name | Should -Be 'tools'
+        $commandDefinition.Description | Should -Be 'Open the interactive tools menu'
         $commandDefinition.OwnerName | Should -Be 'Gerber.Core'
     }
 

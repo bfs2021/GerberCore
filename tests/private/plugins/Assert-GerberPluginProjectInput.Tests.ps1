@@ -23,4 +23,33 @@ Describe 'Assert-GerberPluginProjectInput' -Tag 'PluginCreate' {
         { Assert-GerberPluginProjectInput -Field ParentPath -Value $path } | Should -Throw '*parent*'
         Get-Content $path | Should -Be 'existing user file'
     }
+
+    Context 'repository input' -Tag 'PluginCreateRepository' {
+        It 'rejects blank repository names with local recovery guidance' -ForEach @('', ' ') {
+            { Assert-GerberPluginProjectInput -Field RepositoryName -Value $_ } | Should -Throw '*repository name*Esc*'
+        }
+
+        It 'accepts a custom repository display name' {
+            { Assert-GerberPluginProjectInput -Field RepositoryName -Value 'ExampleFeed' } | Should -Not -Throw
+        }
+
+        It 'accepts <Value> for explicit creation metadata' -ForEach @(
+            @{ Value = 'https://packages.example.org/feed' }
+            @{ Value = 'REPLACE_WITH_REPOSITORY_URI' }
+        ) {
+            {
+                Assert-GerberPluginProjectInput -Field RepositoryUri -Value $Value
+            } | Should -Not -Throw
+        }
+
+        It 'rejects <Value> with recoverable input guidance' -ForEach @(
+            @{ Value = '' }, @{ Value = 'relative-feed' }
+            @{ Value = 'https://user:password@example.org/feed' }
+            @{ Value = 'https://example.org/feed?token=secret' }, @{ Value = 'https://example.org/feed#fragment' }
+        ) {
+            {
+                Assert-GerberPluginProjectInput -Field RepositoryUri -Value $Value
+            } | Should -Throw '*absolute repository URI*Enter*Esc*'
+        }
+    }
 }

@@ -9,6 +9,16 @@ BeforeAll {
 Describe 'Core equal-version update contract' -Tag 'GerberPmu011' {
     BeforeEach {
         $env:GERBER_CONFIG_PATH = Join-Path $TestDrive 'missing-core-update-config.json'
+        $script:coreContractDeniedRoot = Join-Path $TestDrive 'denied-module-root'
+        Mock Get-GerberDefaultPluginModulePathList -ModuleName Gerber {
+            @($script:coreContractDeniedRoot)
+        }
+        Mock Test-Path -ModuleName Gerber -ParameterFilter {
+            $LiteralPath -eq $script:coreContractDeniedRoot
+        } -MockWith {
+            param($ErrorAction = 'Stop')
+            Write-Error -Exception ([System.UnauthorizedAccessException]::new('Permission denied')) -Category PermissionDenied -ErrorAction $ErrorAction
+        }
         Mock Get-PSModuleUpdate -ModuleName Gerber {
             [pscustomobject]@{
                 InstalledVersion = '0.1.0'; TargetVersion = '0.1.0'; Disposition = 'UpToDate'

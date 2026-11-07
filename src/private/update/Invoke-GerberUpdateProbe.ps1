@@ -4,11 +4,11 @@ function Invoke-GerberUpdateProbe {
     try {
         $null = $process.Start()
         $output = $process.StandardOutput.ReadToEndAsync()
-        $null = $process.StandardError.ReadToEndAsync()
         return Receive-GerberUpdateProbe -Process $process -Output $output -TimeoutMilliseconds $TimeoutMilliseconds
-    } catch [System.Management.Automation.PipelineStoppedException] { throw
+    } catch [System.Management.Automation.PipelineStoppedException] {
+        throw
     } catch {
-        return [pscustomobject]@{ Status = 'Unavailable' }
+        return Get-GerberUpdateProbeFailure 'Unavailable'
     } finally {
         Close-GerberUpdateProbe $process
     }
@@ -19,11 +19,15 @@ function Initialize-GerberUpdateProbeProcess {
     $scriptText = Get-GerberUpdateProbeCommand $Request
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new((Join-Path $PSHOME 'pwsh'))
     foreach ($argument in @('-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand',
-        [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($scriptText)))) { $startInfo.ArgumentList.Add($argument) }
+            [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($scriptText)))) {
+        $startInfo.ArgumentList.Add($argument)
+    }
     $startInfo.UseShellExecute = $false
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
-    [System.Diagnostics.Process]::new() | ForEach-Object { $_.StartInfo = $startInfo; $_ }
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    $process
 }
 
 function Get-GerberUpdateProbeCommand {
@@ -37,26 +41,29 @@ function Get-GerberUpdateProbeCommand {
 
 function Receive-GerberUpdateProbe {
     param([System.Diagnostics.Process]$Process, [System.Threading.Tasks.Task[string]]$Output, [int]$TimeoutMilliseconds)
-    $watch = [System.Diagnostics.Stopwatch]::StartNew()
-    if (-not $Process.WaitForExit($TimeoutMilliseconds)) { return [pscustomobject]@{ Status = 'TimedOut' } }
-    $remaining = [Math]::Max(0, $TimeoutMilliseconds - [int]$watch.ElapsedMilliseconds)
-    if (-not $Output.Wait($remaining)) { return [pscustomobject]@{ Status = 'TimedOut' } }
-    if ($Process.ExitCode -ne 0) { return [pscustomobject]@{ Status = 'Unavailable' } }
-    $summary = $Output.Result | ConvertFrom-Json -ErrorAction Stop
+    $null = $Process.StandardError.ReadToEndAsync()
+    if (-not (Wait-GerberUpdateProbeOutput -Process $Process -Output $Output -TimeoutMilliseconds $TimeoutMilliseconds)) {
+        return Get-GerberUpdateProbeFailure 'TimedOut'
+    }
+    if ($Process.ExitCode -ne 0) {
+        return Get-GerberUpdateProbeFailure 'Unavailable'
+    }
+    Read-GerberUpdateProbeSummary $Output.Result
+}
+
+function Read-GerberUpdateProbeSummary {
+    param([string]$Text)
+    $summary = $Text | ConvertFrom-Json -ErrorAction Stop
     if ($summary.Status -notin @('Available', 'UpToDate', 'RestartRequired', 'Unavailable', 'NoMatchingPackage')) {
-        return [pscustomobject]@{ Status = 'Unavailable' }
+        return Get-GerberUpdateProbeFailure 'Unavailable'
     }
     $summary | Select-Object Status, Name, Installed, Available, Repository, Message
 }
 
-function Close-GerberUpdateProbe {
-    param([System.Diagnostics.Process]$Process)
-    try {
-        if (-not $Process.HasExited) { $Process.Kill($true) }
-    } catch [System.InvalidOperationException] {
-        Write-Verbose 'Update probe already exited or could not start.'
-    } finally {
-        $Process.Dispose()
+function Get-GerberUpdateProbeFailure {
+    param([string]$Status)
+    [pscustomobject]@{
+        Status = $Status
     }
 }
 

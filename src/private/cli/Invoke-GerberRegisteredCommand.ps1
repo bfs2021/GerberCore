@@ -9,23 +9,52 @@ function Invoke-GerberRegisteredCommand {
         [pscustomobject]$Command
     )
 
+    if (Test-GerberCommandContainer -Definition $CommandDefinition) {
+        return Invoke-GerberContainerMenu -CommandDefinition $CommandDefinition -Command $Command
+    }
+
+    $result = Invoke-GerberValidatedCommandHandler -CommandDefinition $CommandDefinition -Command $Command
+    return ConvertTo-GerberHandlerExitResult -Result $result -CommandName $CommandDefinition.Name
+}
+
+function Invoke-GerberContainerMenu {
+    param(
+        [pscustomobject]$CommandDefinition,
+        [pscustomobject]$Command
+    )
+
+    return [bool](Show-GerberRegisteredSubcommandMenu -CommandName $CommandDefinition.Name `
+        -Command $Command -AutoSelectFirstSuggestionOnSubmit -PropagateExit)
+}
+
+function Invoke-GerberValidatedCommandHandler {
+    param(
+        [pscustomobject]$CommandDefinition,
+        [pscustomobject]$Command
+    )
+
     if ($CommandDefinition.Handler -isnot [scriptblock]) {
         throw [System.ArgumentException]::new(
             "Gerber command '$($CommandDefinition.Name)' does not define a valid handler scriptblock."
         )
     }
 
-    $result = Invoke-GerberRegisteredCommandHandler -CommandDefinition $CommandDefinition -Command $Command
-    if ($result -is [bool]) {
-        return $result
-    }
+    return Invoke-GerberRegisteredCommandHandler -CommandDefinition $CommandDefinition -Command $Command
+}
 
-    if ($null -eq $result) {
-        return $false
+function ConvertTo-GerberHandlerExitResult {
+    param(
+        [AllowNull()]
+        [object]$Result,
+        [string]$CommandName
+    )
+
+    if ($null -eq $Result -or $Result -is [bool]) {
+        return [bool]$Result
     }
 
     throw [System.InvalidOperationException]::new(
-        "Gerber command '$($CommandDefinition.Name)' returned an invalid handler result type '$($result.GetType().FullName)'."
+        "Gerber command '$CommandName' returned an invalid handler result type '$($Result.GetType().FullName)'."
     )
 }
 
@@ -56,17 +85,30 @@ function Get-GerberRegisteredPluginApiContext {
         [string]$OwnerName
     )
 
-    $registryState = Get-Variable `
-        -Name 'GerberCommandRegistryState' `
-        -Scope Script `
-        -ErrorAction SilentlyContinue
-    if ($null -eq $registryState -or $null -eq $registryState.Value) {
+    $registryState = Resolve-GerberPluginContextRegistry
+    return Find-GerberPluginOwnerContext -PluginList $registryState.PluginList -OwnerName $OwnerName
+}
+
+function Resolve-GerberPluginContextRegistry {
+    param()
+
+    $registryState = Get-GerberRegisteredCommandRegistryState
+    if ($null -eq $registryState) {
         throw [System.InvalidOperationException]::new(
             'Gerber command registry has not been initialized for this session.'
         )
     }
 
-    foreach ($pluginState in @($registryState.Value.PluginList)) {
+    return $registryState
+}
+
+function Find-GerberPluginOwnerContext {
+    param(
+        [object[]]$PluginList,
+        [string]$OwnerName
+    )
+
+    foreach ($pluginState in $PluginList) {
         if ([string]$pluginState.Name -ieq $OwnerName) {
             return $pluginState.PluginApiContext
         }

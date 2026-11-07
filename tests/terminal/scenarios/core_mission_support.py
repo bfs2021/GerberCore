@@ -6,7 +6,6 @@ from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
-ADO_PAT = "terminal-ado-pat"
 STRICT_HTTP_ERROR = {
     "type": "error",
     "message": "Unexpected Gerber Core terminal HTTP request.",
@@ -18,23 +17,6 @@ def strict_http_fixture(request_list: list[dict[str, Any]]) -> dict[str, Any]:
         "defaultResult": dict(STRICT_HTTP_ERROR),
         "requests": request_list,
     }
-
-
-def seed_gerber_config(path: Path) -> None:
-    _write_json(
-        path,
-        {
-            "schemaVersion": 1,
-            "ado": {
-                "defaultProfile": "terminal",
-                "profiles": {
-                    "terminal": {
-                        "projectUrl": "https://dev.azure.com/terminal/TerminalProject",
-                    }
-                },
-            },
-        },
-    )
 
 
 def seed_credential_state(
@@ -50,15 +32,6 @@ def seed_credential_state(
             "failures": failure_map or {},
         },
     )
-
-
-def seed_ado_state(context) -> None:
-    seed_gerber_config(context.app.runtime_paths.scenario_root / "config.json")
-    seed_credential_state(
-        context.app.runtime_paths.credential_state_path,
-        {"gerber:ado:terminal:pat": ADO_PAT},
-    )
-    context.app.register_sensitive_value(ADO_PAT)
 
 
 def assert_http_request(

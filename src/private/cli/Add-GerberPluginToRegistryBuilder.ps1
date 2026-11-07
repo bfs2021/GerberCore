@@ -54,7 +54,8 @@ function ConvertTo-GerberPluginRegistration {
     $pluginApiVersion = [string]$PluginModule.PrivateData.Gerber.ApiVersion
     $pluginApiContext = New-GerberPluginApiContext `
         -ApiVersion $pluginApiVersion `
-        -PluginId $PluginModule.Guid
+        -PluginId $PluginModule.Guid `
+        -PluginModuleName $PluginModule.Name
     $pluginDefinition = Get-GerberPluginDefinition `
         -PluginModule $PluginModule `
         -CurrentGerberVersion $GerberVersion `

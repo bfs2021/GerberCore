@@ -37,7 +37,7 @@ BeforeAll {
     }
 }
 
-Describe 'Get-GerberPluginManifestMetadataList' {
+Describe 'Get-GerberPluginManifestMetadataList' -Tag 'PluginManifestMetadata' {
     BeforeEach {
         $script:manifestRoot = Join-Path $TestDrive ([guid]::NewGuid().ToString())
         $null = New-Item -ItemType Directory -Path $script:manifestRoot -Force
@@ -55,6 +55,20 @@ Describe 'Get-GerberPluginManifestMetadataList' {
         $result[0].Description | Should -Be 'Fixture description'
         $result[0].Author | Should -Be 'Fixture Publisher'
         Get-Module -Name 'Gerber.ValidGuidPlugin' | Should -BeNullOrEmpty
+    }
+
+    It 'continues discovering accessible plugins when a module search root denies access' {
+        $script:deniedRoot = Join-Path $TestDrive 'denied-root'
+        New-GerberManifestTestModule -ModuleName 'Gerber.AccessiblePlugin' -Guid '977537c5-b7f5-4f2f-9dd4-5ec0e28d2618'
+        Mock Test-Path -ParameterFilter {
+            $LiteralPath -eq $script:deniedRoot
+        } -MockWith {
+            param($ErrorAction = 'Stop')
+            Write-Error -Exception ([System.UnauthorizedAccessException]::new('Permission denied')) -Category PermissionDenied -ErrorAction $ErrorAction
+        }
+        $result = @(Get-GerberPluginManifestMetadataList -PluginModulePathList @($script:deniedRoot, $script:manifestRoot) -ErrorAction Stop)
+        $result.Count | Should -Be 1
+        $result[0].Guid | Should -Be '977537c5-b7f5-4f2f-9dd4-5ec0e28d2618'
     }
 
     It 'rejects an invalid manifest GUID with a controlled diagnostic' {

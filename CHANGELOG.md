@@ -8,8 +8,62 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Added identity-bound Plugin API v1 `Configuration.Read` and
+  `Configuration.Save` for schema-free, module-named JSON files beside Core
+  configuration, with strict JSON errors and atomic publication. Added the
+  concrete shared UI and HTTP metadata operations required by AzureDevOps;
+  authenticated ADO transport is not part of Core.
+- Added G-4A9 installed-plugin update selection to `/update list`, using the
+  existing shared channel and per-plugin `PrivateData.Gerber.Repository`
+  descriptors (`Name` for display, canonical `Uri` for PMU). Names survive
+  unavailable/no-matching-package lookup results. Absent metadata defaults to
+  PSGallery and its official URI; invalid declarations never fall back.
+  Legacy `RepositoryUri` remains supported, mapping the official Gallery URL
+  to PSGallery and retaining custom raw URL display until a name is added.
+  Canonical metadata wins when both keys exist. Current installed manifests
+  remain authoritative over cached module metadata; trust prompts retain URLs.
+  Only installed, associated, approved, enabled plugins participate; startup
+  remains Core-only. Shared checkbox selection, separately confirmed
+  trust/license-gated package inspection and a default-Cancel combined install
+  preview show versions, source, scope and visibly auto-added required Core.
+  Core and plugins share one aligned overview table, including in the selection
+  screen, with a blank line before the shared channel and no per-plugin
+  information footer. No available updates return through the continue prompt
+  without a chooser or misleading cancellation message.
+  PMU installs the original plans sequentially, Core first; dependency failures
+  block dependent items while independent updates continue, and cancellation
+  stops future attempts. Results separate installation, verification, recovery
+  and fresh-process activation, retaining Installed when activation fails.
+  Credentials are operation-only; no first install, hot reload or batch rollback.
+  Added mirrored UI tests, disposable PTY regression fixtures and affected help.
+  The new PMU target-manifest inspection API remains locally implemented,
+  unpublished and undeployed; numeric minimum stays 0.2.0. No hosted/live
+  qualification implied.
+- Added repository selection to `/plugins create`. PSGallery is preselected and
+  generates an explicit `Manifest.PrivateData.Gerber.Repository` object with
+  `Name = PSGallery` and its official `Uri`, without additional questions.
+  Another repository asks for a name followed by a safe absolute URL, or writes
+  `REPLACE_WITH_REPOSITORY_URI` in `Repository.Uri` when unknown. Requests,
+  results, generated JSON and manifests retain the canonical descriptor.
+  The completion summary shows name and URI plus placeholder replacement
+  guidance. Blank names and unsafe URLs can be corrected locally; Esc at the
+  chooser, name or URI cancels without generation.
+  An unreplaced placeholder remains invalid for updates without Gallery fallback.
+
 ### Changed
 
+- Azure DevOps implementation, commands, configuration interpretation, REST,
+  resources and product regressions now belong to **Gerber.AzureDevOps 0.1.0**,
+  declared as a Core runtime dependency. Existing command paths remain;
+  import does not approve or enable the plugin. Core retains generic platform
+  roots, UI, configuration persistence, credentials and plugin lifecycle.
+- Core defaults to `GerberCore.json`; ADO settings use
+  `Gerber.AzureDevOps.json`. A repeatable legacy `config.json` split preserves
+  unknown settings and destination data, retains originals on conflict or
+  failure, and removes the old file only after verification. Legacy file
+  overrides resolve to the named Core sibling. PATs use the plugin's existing
+  GUID-scoped Secrets API and must be re-entered when missing; legacy Core
+  credentials are never migrated, reused or deleted.
 - Core update completion now offers **Exit Gerber** or **Continue with current
   version** after verified success requiring restart, or discovery of an
   already-installed newer Core. Continue is the default and Esc also continues.
@@ -20,15 +74,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Removed
 
+- Removed Core-owned ADO Plugin API capabilities and built-in product dispatch.
+  No compatibility facade or new Plugin API version is introduced.
 ### Added
 
 ### Fixed
 
+- Empty menu-only roots and intermediate submenus are removed from the active
+  command tree. `/branch`, `/list`, `/pipelines` and `/repository` appear only
+  with available plugin actions; shared roots retain other active contributors.
+  Enable/disable refreshes menus, suggestions, help and direct command lookup
+  without duplicate commands. Standalone Core actions remain available.
+- Plugin discovery now skips unreadable module-search roots instead of
+  terminating the plugin inventory or `/update list` with a permission error.
+  Accessible plugins and Core update checks remain available; filesystem
+  permissions and configured module paths are unchanged.
 - Corrected Core update documentation to match the declared PSModuleUpdate
   0.2.0 minimum and its Gallery availability. Recorded user-confirmed live
-  installation separately from outstanding provider error classification and
-  broader platform/recovery qualification; no dependency or runtime behavior
-  changes are included in this documentation correction.
+  installation separately from the locally corrected, unpublished provider
+  error classification and outstanding platform/recovery qualification; no
+  Gerber dependency or runtime behavior changes are included in this
+  documentation correction.
 
 ### Security
 

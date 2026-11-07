@@ -37,8 +37,6 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'TestHarness.Environment.ps1')
 . (Join-Path $PSScriptRoot 'TestHarness.RuntimeDependencies.ps1')
 
-Import-GerberTerminalRuntimeDependency -GerberRoot $GerberRoot
-
 Initialize-GerberTerminalConfigurationEnvironment -PromptTracePath $PromptTracePath
 Write-GerberTerminalJsonFile -Path $DiagnosticStatePath -Value @{
     events = @()
@@ -47,6 +45,7 @@ Write-GerberTerminalJsonFile -Path $ModuleStatePath -Value (Get-GerberTerminalDe
 
 try {
     Add-GerberTerminalDiagnosticEvent -Path $DiagnosticStatePath -Kind 'terminal-harness-started'
+    Import-GerberTerminalRuntimeDependency -GerberRoot $GerberRoot
 
     Initialize-GerberTerminalClipboardShim -Path $ClipboardStatePath
     Initialize-GerberTerminalHttpShim -FixturePath $HttpFixturePath -StatePath $HttpStatePath

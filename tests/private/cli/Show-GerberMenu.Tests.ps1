@@ -5,7 +5,7 @@ BeforeAll {
 
 Describe 'Get-GerberActionList' -Tag 'G4A7' {
     It 'returns only the supported root commands' {
-        Get-GerberActionList | Should -Be @('exit', 'help', 'plugins', 'update', 'branch', 'list', 'pipelines', 'repository', 'secrets', 'tools')
+        Get-GerberActionList | Should -Be @('exit', 'help', 'plugins', 'update', 'secrets', 'tools')
     }
 
     Describe 'Show-GerberHomeScreen' -Tag 'G4A7' {
@@ -152,7 +152,7 @@ Describe 'Resolve-GerberMenuLoopException' {
     }
 }
 
-Describe 'Show-GerberMenu helper functions' {
+Describe 'Show-GerberMenu helper functions' -Tag 'ActiveCommandTree' {
     It 'starts the root menu without depending on the removed test session-state helper' {
         Mock Write-GerberMenuEscapeSequenceReset {}
         Mock Start-GerberScreen {}
@@ -162,7 +162,7 @@ Describe 'Show-GerberMenu helper functions' {
         { Show-GerberMenu } | Should -Not -Throw
         Should -Invoke Write-GerberMenuEscapeSequenceReset -Times 1
         Should -Invoke Invoke-GerberMenuLoopIteration -Times 1 -ParameterFilter {
-            $ActionList -join ',' -eq 'exit,help,plugins,update,branch,list,pipelines,repository,secrets,tools'
+            $ActionList -join ',' -eq 'exit,help,plugins,update,secrets,tools'
         }
     }
 

@@ -3,32 +3,24 @@ BeforeAll {
     Import-GerberSource -StartPath $PSScriptRoot
 }
 
-Describe 'Get-GerberCommandRegistry' {
+Describe 'Get-GerberCommandRegistry' -Tag 'ActiveCommandTree' {
     It 'returns the initialized effective session registry' {
         $registry = @(Get-GerberCommandRegistry)
 
         $registry.Name | Should -Be @(
             'tools',
-            'list',
-            'branch',
-            'repository',
             'plugins',
-            'pipelines',
             'secrets',
             'update',
             'help',
             'exit',
-            'list ado-agents',
-            'list ado-team-members',
             'tools create-uuid',
             'tools base-64',
-            'repository create',
             'plugins list',
             'plugins info',
             'plugins enable',
             'plugins disable',
             'plugins create',
-            'pipelines tags',
             'update list',
             'update policy'
         )

@@ -17,6 +17,16 @@ Describe 'Show-GerberUpdatePolicyView' -Tag 'CoreUpdatePolicy' {
     }
 
     Context 'safe shared chooser flow' {
+        It 'explains the shared channel while preserving Core-only startup checks' -Tag 'G4A9UI' {
+            Mock Wait-GerberContinue {
+            }
+            Show-GerberUpdatePolicyView
+            Should -Invoke Read-GerberNumberedMenuPrompt -ParameterFilter {
+                $Prompt -eq 'Core update channel (Esc to go back)' -and
+                $ScreenText -match 'Core and plugin' -and $ScreenText -match 'startup checks Core only'
+            }
+        }
+
         It 'preselects the current channel, saves explicitly and does not discover or install' {
             { Show-GerberUpdatePolicyView } | Should -Throw '*test escape*'
             Should -Invoke Read-GerberNumberedMenuPrompt -Times 1 -ParameterFilter {

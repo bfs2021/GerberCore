@@ -25,7 +25,8 @@ Invoke-Gerber
         $result.IsValid | Should -BeTrue
         $result.Diagnostics.Count | Should -Be 0
         $result.PublicApi.UI | Should -Contain 'ShowTextBlock'
-        $result.PublicApi.Ado | Should -Contain 'GetPullRequest'
+        $result.PublicApi.Keys | Should -Not -Contain 'Ado'
+        $result.PublicApi.Configuration | Should -Contain 'Read'
     }
 
     It 'detects <Label> without executing source' -ForEach @(

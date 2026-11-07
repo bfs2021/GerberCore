@@ -58,8 +58,9 @@ jobs:
           }
 
       - name: Install required CI PowerShell modules
-        shell: pwsh
-        run: ./scripts/build/ci/Install-CiPowerShellModules.ps1
+        uses: stiwicourage/powershell-ci/actions/install-ps-modules@develop
+        with:
+          modules: NovaModuleTools KeepAChangelog
 
       - name: Install Linux native Secret Service prerequisites
         if: runner.os == 'Linux'

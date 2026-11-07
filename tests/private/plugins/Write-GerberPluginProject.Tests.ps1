@@ -4,6 +4,35 @@ BeforeAll {
 }
 
 Describe 'Write-GerberPluginProject' -Tag 'PluginCreate' {
+    Context 'repository metadata' -Tag 'PluginCreateRepository' {
+        It 'writes canonical <Label> directly under Gerber without an Update intermediary' -ForEach @(
+            @{ Label = 'known custom source'; Uri = 'https://packages.example.org/feed' }
+            @{ Label = 'unknown custom source'; Uri = 'REPLACE_WITH_REPOSITORY_URI' }
+        ) {
+            $request = [pscustomobject]@{
+                Name = 'Gerber.Example'; Namespace = 'example'; Suffix = 'Example'
+                Description = 'Local tools'; Repository = @{ Name = 'ExampleFeed'; Uri = $Uri }
+            }
+            Write-GerberPluginProject -Request $request -Path $TestDrive -Guid '5ff12592-8333-40d1-b167-9f5902149843'
+            $metadata = (Get-Content (Join-Path $TestDrive 'project.json') -Raw | ConvertFrom-Json -AsHashtable).Manifest.PrivateData.Gerber
+            $metadata.Repository.Name | Should -BeExactly 'ExampleFeed'
+            $metadata.Repository.Uri | Should -BeExactly $Uri
+            $metadata.Keys | Should -Not -Contain 'RepositoryUri'
+            $metadata.Keys | Should -Not -Contain 'Update'
+        }
+
+        It 'writes an explicit canonical default Gallery source without legacy metadata' {
+            $request = [pscustomobject]@{
+                Name = 'Gerber.Example'; Namespace = 'example'; Suffix = 'Example'; Description = 'Local tools'
+            }
+            Write-GerberPluginProject -Request $request -Path $TestDrive -Guid '5ff12592-8333-40d1-b167-9f5902149843'
+            $metadata = (Get-Content (Join-Path $TestDrive 'project.json') -Raw | ConvertFrom-Json -AsHashtable).Manifest.PrivateData.Gerber
+            $metadata.Keys | Should -Not -Contain 'RepositoryUri'
+            $metadata.Repository.Name | Should -BeExactly 'PSGallery'
+            $metadata.Repository.Uri | Should -BeExactly 'https://www.powershellgallery.com/api/v2'
+        }
+    }
+
     It 'writes complete sources without source manifests and safely serializes descriptions' {
         $request = [pscustomobject]@{
             Name = 'Gerber.Example'; Namespace = 'example'; Suffix = 'Example'
@@ -43,9 +72,10 @@ Describe 'Write-GerberPluginProject' -Tag 'PluginCreate' {
 
         It 'provides canonical self-contained Gerber guidance and thin tool bridges' {
             $guide = Get-Content (Join-Path $TestDrive 'AGENTS.md') -Raw
-            foreach ($contract in @('Plugin API v1', 'Manifest.GUID', 'PrivateData.Gerber', 'src/public', 'src/private', 'dist/', 'docs/schema', 'Get-GerberPlugin', 'Get-PluginCommandDefinitionList', 'Get-PluginHelloHandler', '/example hello', 'UI.ReadSubcommand', 'Ado.OpenConnection', 'Secrets.GetText', 'Clipboard.CopyText', 'Invoke-NovaBuild', 'Invoke-NovaTest', 'Test-NovaBuild', 'Publish-NovaModule -Local', 'Update-NovaModuleVersion', 'PSScriptAnalyzer', 'CodeScene', '90%')) {
+            foreach ($contract in @('Plugin API v1', 'Manifest.GUID', 'PrivateData.Gerber', 'src/public', 'src/private', 'dist/', 'docs/schema', 'Get-GerberPlugin', 'Get-PluginCommandDefinitionList', 'Get-PluginHelloHandler', '/example hello', 'UI.ReadSubcommand', 'Configuration.Read', 'Configuration.Save', 'Secrets.GetText', 'Clipboard.CopyText', 'Invoke-NovaBuild', 'Invoke-NovaTest', 'Test-NovaBuild', 'Publish-NovaModule -Local', 'Update-NovaModuleVersion', 'PSScriptAnalyzer', 'CodeScene', '90%')) {
                 $guide | Should -Match ([regex]::Escape($contract))
             }
+            $guide | Should -Not -Match 'Ado\.OpenConnection'
             foreach ($bridge in @('CLAUDE.md', '.github/copilot-instructions.md')) {
                 $text = Get-Content (Join-Path $TestDrive $bridge) -Raw
                 $text | Should -Match 'AGENTS.md'

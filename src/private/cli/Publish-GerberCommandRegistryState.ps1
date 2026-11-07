@@ -6,7 +6,7 @@ function Publish-GerberCommandRegistryState {
     )
 
     $script:GerberCommandRegistryState = [pscustomobject][ordered]@{
-        CommandList   = $RegistryBuilder.CommandList.ToArray()
+        CommandList   = @(Select-GerberActiveCommandDefinitionList -Commands $RegistryBuilder.CommandList.ToArray())
         PluginList    = $RegistryBuilder.PluginList.ToArray()
         GerberVersion = $RegistryBuilder.GerberVersion.ToString()
     }

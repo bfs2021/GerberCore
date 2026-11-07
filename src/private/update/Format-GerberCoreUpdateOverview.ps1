@@ -6,6 +6,8 @@ function Format-GerberCoreUpdateOverview {
     }
     $text = ($row | Format-Table -AutoSize | Out-String).Trim()
     $channel = $State.PSObject.Properties['Channel']
-    if ($null -ne $channel -and $channel.Value) { $text += "`nChannel: $(Get-GerberCoreUpdateChannelLabel $channel.Value)." }
+    if ($null -ne $channel -and $channel.Value) {
+        $text += "`n`nChannel: $(Get-GerberCoreUpdateChannelLabel $channel.Value)."
+    }
     $text
 }

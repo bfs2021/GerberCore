@@ -60,18 +60,6 @@ function Complete-GerberCorePlanOverview {
     $State
 }
 
-function Resolve-GerberUpdateDisposition {
-    param([object]$Plan)
-    $statuses = @{
-        UpdateAvailable = 'Available'
-        UpToDate = 'UpToDate'
-        AlreadyInstalledRestartRequired = 'RestartRequired'
-    }
-    $status = $statuses[$Plan.Disposition]
-    if (-not $status) { throw [System.InvalidOperationException]::new('Unsupported PSModuleUpdate disposition.') }
-    $status
-}
-
 function Get-GerberUpdateDispositionMessage {
     param([string]$Status, [string]$Channel)
     $label = Get-GerberCoreUpdateChannelLabel $Channel

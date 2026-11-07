@@ -24,7 +24,7 @@ function Get-GerberCandidatePluginManifestPathList {
 
     return [string[]]@(
         foreach ($moduleRoot in $PluginModulePathList) {
-            if (Test-Path -LiteralPath $moduleRoot -PathType Container) {
+            if (Test-Path -LiteralPath $moduleRoot -PathType Container -ErrorAction SilentlyContinue) {
                 Get-GerberManifestPathListFromModuleRoot -ModuleRoot $moduleRoot
             }
         }

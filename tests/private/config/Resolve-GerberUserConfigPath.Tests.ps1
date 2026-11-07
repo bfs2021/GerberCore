@@ -18,7 +18,7 @@ BeforeAll {
     }
 }
 
-Describe 'Resolve-GerberUserConfigPath' {
+Describe 'Resolve-GerberUserConfigPath' -Tag 'PluginJson' {
     It 'uses APPDATA on Windows' {
         Use-GerberUserConfigEnvironmentMock -ValueByName @{
             APPDATA = (Join-Path $TestDrive 'AppData/Roaming')
@@ -26,7 +26,7 @@ Describe 'Resolve-GerberUserConfigPath' {
 
         $result = Resolve-GerberUserConfigPath -IsWindowsPlatform $true
 
-        $result | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'AppData/Roaming/Gerber/config.json')))
+        $result | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'AppData/Roaming/Gerber/GerberCore.json')))
     }
 
     It 'uses XDG_CONFIG_HOME on Unix-like platforms when it is defined' {
@@ -37,7 +37,7 @@ Describe 'Resolve-GerberUserConfigPath' {
 
         $result = Resolve-GerberUserConfigPath -IsWindowsPlatform $false
 
-        $result | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'xdg-config/Gerber/config.json')))
+        $result | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'xdg-config/Gerber/GerberCore.json')))
     }
 
     It 'falls back to HOME/.config on Unix-like platforms when XDG_CONFIG_HOME is missing' {
@@ -47,7 +47,7 @@ Describe 'Resolve-GerberUserConfigPath' {
 
         $result = Resolve-GerberUserConfigPath -IsWindowsPlatform $false
 
-        $result | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'home/.config/Gerber/config.json')))
+        $result | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $TestDrive 'home/.config/Gerber/GerberCore.json')))
     }
 
     It 'prefers GERBER_CONFIG_PATH over platform-specific defaults' {
@@ -129,7 +129,21 @@ Describe 'Resolve-GerberUserConfigPath' {
 
         $result = Resolve-GerberUserConfigPath -IsWindowsPlatform $false
 
-        $result | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $xdgConfigHome 'Gerber/config.json')))
+        $result | Should -Be ([System.IO.Path]::GetFullPath((Join-Path $xdgConfigHome 'Gerber/GerberCore.json')))
         (Test-Path -LiteralPath $xdgConfigHome) | Should -BeFalse
+    }
+
+    It 'normalizes a legacy config.json override to its sibling Core file' {
+        Use-GerberUserConfigEnvironmentMock -ValueByName @{ GERBER_CONFIG_PATH = (Join-Path $TestDrive 'custom/config.json') }
+        Resolve-GerberUserConfigPath -IsWindowsPlatform $false | Should -Be (Join-Path $TestDrive 'custom/GerberCore.json')
+    }
+
+    It 'preserves case-distinct custom overrides on Unix while recognizing Windows legacy names' -ForEach @(
+        @{ WindowsPlatform = $false; ExpectedName = 'CONFIG.JSON' }
+        @{ WindowsPlatform = $true; ExpectedName = 'GerberCore.json' }
+    ) {
+        $directory = Join-Path $TestDrive 'custom'
+        Use-GerberUserConfigEnvironmentMock -ValueByName @{ GERBER_CONFIG_PATH = (Join-Path $directory 'CONFIG.JSON') }
+        Resolve-GerberUserConfigPath -IsWindowsPlatform $WindowsPlatform | Should -Be (Join-Path $directory $ExpectedName)
     }
 }

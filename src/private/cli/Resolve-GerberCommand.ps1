@@ -10,19 +10,29 @@ function Resolve-GerberCommand {
 
     $trimmedInput = $InputText.Trim()
     if ([string]::IsNullOrWhiteSpace($trimmedInput)) {
-        return ConvertTo-GerberResolvedCommand -IsValid $false -Name $null -Arguments @() -ErrorMessage 'Enter a command like /tools or choose a numbered menu option.' -Suggestions @()
+        return ConvertTo-GerberResolvedCommand -Name $null -Arguments @() -Suggestions @() `
+            -Outcome (ConvertTo-GerberCommandOutcome -IsValid $false -ErrorMessage 'Enter a command like /tools or choose a numbered menu option.')
     }
 
+    return Resolve-GerberNonemptyCommandInput -InputText $trimmedInput -ActionList $ActionList
+}
+
+function Resolve-GerberNonemptyCommandInput {
+    param(
+        [string]$InputText,
+        [string[]]$ActionList
+    )
+
     $selection = 0
-    if ([int]::TryParse($trimmedInput, [ref]$selection)) {
+    if ([int]::TryParse($InputText, [ref]$selection)) {
         return Resolve-GerberNumericCommand -Selection $selection -ActionList $ActionList
     }
 
-    if (-not $trimmedInput.StartsWith('/')) {
-        return Resolve-GerberRootSearchCommand -InputText $trimmedInput -ActionList $ActionList
+    if (-not $InputText.StartsWith('/')) {
+        return Resolve-GerberRootSearchCommand -InputText $InputText -ActionList $ActionList
     }
 
-    return Resolve-GerberSlashCommand -InputText $trimmedInput -ActionList $ActionList
+    return Resolve-GerberSlashCommand -InputText $InputText -ActionList $ActionList
 }
 
 function Resolve-GerberRootSearchCommand {
@@ -35,25 +45,51 @@ function Resolve-GerberRootSearchCommand {
         [string[]]$ActionList
     )
 
+    $search = Initialize-GerberRootCommandSearch -InputText $InputText -ActionList $ActionList
+    return ConvertTo-GerberRootSearchResolution -Search $search -InputText $InputText
+}
+
+function Initialize-GerberRootCommandSearch {
+    param(
+        [string]$InputText,
+        [string[]]$ActionList
+    )
+
     $catalog = Get-GerberCommandCatalog -ActionList $ActionList
     $leafActionList = @(Get-GerberLeafActionCommandList -Catalog $catalog)
-    $suggestionList = @(Get-GerberLeafActionSuggestionList -LeafActionList $leafActionList -InputText $InputText)
-    $exactAction = Get-GerberExactLeafActionMatch -LeafActionList $leafActionList -InputText $InputText
-    if ($null -ne $exactAction) {
-        return ConvertTo-GerberResolvedCommand `
-            -IsValid $true `
-            -Name $exactAction.RootCommandName `
-            -Arguments $exactAction.Arguments `
-            -ErrorMessage $null `
-            -Suggestions $suggestionList
+    return [pscustomobject]@{
+        SuggestionList = @(Get-GerberLeafActionSuggestionList -LeafActionList $leafActionList -InputText $InputText)
+        ExactAction = Get-GerberExactLeafActionMatch -LeafActionList $leafActionList -InputText $InputText
     }
+}
+
+function ConvertTo-GerberRootSearchResolution {
+    param(
+        [pscustomobject]$Search,
+        [string]$InputText
+    )
+
+    if ($null -eq $Search.ExactAction) {
+        return ConvertTo-GerberUnmatchedSearchResolution -Search $Search -InputText $InputText
+    }
+    return ConvertTo-GerberResolvedCommand `
+        -Outcome (ConvertTo-GerberCommandOutcome -IsValid $true -ErrorMessage $null) `
+        -Name $Search.ExactAction.RootCommandName `
+        -Arguments $Search.ExactAction.Arguments `
+        -Suggestions $Search.SuggestionList
+}
+
+function ConvertTo-GerberUnmatchedSearchResolution {
+    param(
+        [pscustomobject]$Search,
+        [string]$InputText
+    )
 
     return ConvertTo-GerberResolvedCommand `
-        -IsValid $false `
+        -Outcome (ConvertTo-GerberCommandOutcome -IsValid $false -ErrorMessage (Get-GerberUnknownCommandMessage -InputText $InputText -SuggestionList $Search.SuggestionList)) `
         -Name $null `
         -Arguments @() `
-        -ErrorMessage (Get-GerberUnknownCommandMessage -InputText $InputText -SuggestionList $suggestionList) `
-        -Suggestions $suggestionList
+        -Suggestions $Search.SuggestionList
 }
 
 function Resolve-GerberPromptInput {
@@ -73,7 +109,8 @@ function Resolve-GerberPromptInput {
 
     switch ($SuggestionMode) {
         'None' {
-            return ConvertTo-GerberResolvedCommand -IsValid $true -Name $null -Arguments @() -ErrorMessage $null -Suggestions @()
+            return ConvertTo-GerberResolvedCommand -Name $null -Arguments @() -Suggestions @() `
+                -Outcome (ConvertTo-GerberCommandOutcome -IsValid $true -ErrorMessage $null)
         }
         'Subcommand' {
             $resolvedSubcommandTable = if ($null -eq $SuggestionSubcommandTable) {
@@ -88,7 +125,8 @@ function Resolve-GerberPromptInput {
                 -SubcommandTable $resolvedSubcommandTable
         }
         'Static' {
-            return ConvertTo-GerberResolvedCommand -IsValid $true -Name $null -Arguments @() -ErrorMessage $null -Suggestions @()
+            return ConvertTo-GerberResolvedCommand -Name $null -Arguments @() -Suggestions @() `
+                -Outcome (ConvertTo-GerberCommandOutcome -IsValid $true -ErrorMessage $null)
         }
         default {
             return Resolve-GerberCommand -InputText $InputText
@@ -107,10 +145,12 @@ function Resolve-GerberNumericCommand {
     )
 
     if ($Selection -lt 1 -or $Selection -gt $ActionList.Count) {
-        return ConvertTo-GerberResolvedCommand -IsValid $false -Name $null -Arguments @() -ErrorMessage "Menu option '$Selection' is not available." -Suggestions @()
+        return ConvertTo-GerberResolvedCommand -Name $null -Arguments @() -Suggestions @() `
+            -Outcome (ConvertTo-GerberCommandOutcome -IsValid $false -ErrorMessage "Menu option '$Selection' is not available.")
     }
 
-    return ConvertTo-GerberResolvedCommand -IsValid $true -Name $ActionList[$Selection - 1] -Arguments @() -ErrorMessage $null -Suggestions @()
+    return ConvertTo-GerberResolvedCommand -Name $ActionList[$Selection - 1] -Arguments @() -Suggestions @() `
+        -Outcome (ConvertTo-GerberCommandOutcome -IsValid $true -ErrorMessage $null)
 }
 
 function Resolve-GerberSubcommandPromptInput {
@@ -128,24 +168,26 @@ function Resolve-GerberSubcommandPromptInput {
     )
 
     if ([string]::IsNullOrWhiteSpace($InputText) -or -not $InputText.Trim().StartsWith('/')) {
-        return ConvertTo-GerberResolvedCommand -IsValid $true -Name $null -Arguments @() -ErrorMessage $null -Suggestions @()
+        return ConvertTo-GerberResolvedCommand -Name $null -Arguments @() -Suggestions @() `
+            -Outcome (ConvertTo-GerberCommandOutcome -IsValid $true -ErrorMessage $null)
     }
 
     $subcommandInput = Get-GerberPromptSubcommandInput -CommandName $CommandName -InputText $InputText
     $suggestionList = @(Get-GerberNamedSubcommandSuggestionList -CommandName $CommandName -SubcommandTable $SubcommandTable -SubcommandInput $subcommandInput)
     if ([string]::IsNullOrWhiteSpace($subcommandInput)) {
-        return ConvertTo-GerberResolvedCommand -IsValid $true -Name $null -Arguments @() -ErrorMessage $null -Suggestions $suggestionList
+        return ConvertTo-GerberResolvedCommand -Name $null -Arguments @() -Suggestions $suggestionList `
+            -Outcome (ConvertTo-GerberCommandOutcome -IsValid $true -ErrorMessage $null)
     }
 
     if (Test-GerberPromptKnownSubcommand -SubcommandTable $SubcommandTable -SubcommandInput $subcommandInput) {
-        return ConvertTo-GerberResolvedCommand -IsValid $true -Name $null -Arguments @() -ErrorMessage $null -Suggestions $suggestionList
+        return ConvertTo-GerberResolvedCommand -Name $null -Arguments @() -Suggestions $suggestionList `
+            -Outcome (ConvertTo-GerberCommandOutcome -IsValid $true -ErrorMessage $null)
     }
 
     return ConvertTo-GerberResolvedCommand `
-        -IsValid $false `
+        -Outcome (ConvertTo-GerberCommandOutcome -IsValid $false -ErrorMessage (Get-GerberUnknownCommandMessage -InputText "/$CommandName $subcommandInput" -SuggestionList $suggestionList)) `
         -Name $null `
         -Arguments @() `
-        -ErrorMessage (Get-GerberUnknownCommandMessage -InputText "/$CommandName $subcommandInput" -SuggestionList $suggestionList) `
         -Suggestions $suggestionList
 }
 
@@ -236,6 +278,14 @@ function Get-GerberCommandCatalog {
         [string[]]$ActionList
     )
 
+    return ConvertTo-GerberActiveCommandCatalog -ActionList $ActionList
+}
+
+function ConvertTo-GerberActiveCommandCatalog {
+    param(
+        [string[]]$ActionList
+    )
+
     $filteredCatalog = [ordered]@{}
     foreach ($action in $ActionList) {
         $commandDefinition = Get-GerberRegisteredCommand -Name $action
@@ -307,26 +357,6 @@ function Get-GerberBase64CommandCatalog {
     }
 }
 
-function Get-GerberListCommandCatalog {
-    [OutputType([System.Collections.Specialized.OrderedDictionary])]
-    [CmdletBinding()]
-    param()
-
-    return [ordered]@{}
-}
-
-function Get-GerberBranchCommandCatalog {
-    [OutputType([System.Collections.Specialized.OrderedDictionary])]
-    [CmdletBinding()]
-    param()
-
-    return [ordered]@{
-        find             = ConvertTo-GerberCommandCatalogEntry -Description 'Search all repositories for a branch path'
-        'set-searchable' = ConvertTo-GerberCommandCatalogEntry -Description 'Standardize searchable-branches policies across all repositories'
-        'set-default'    = ConvertTo-GerberCommandCatalogEntry -Description 'Standardize the default branch across all repositories'
-    }
-}
-
 function Get-GerberSecretsCommandCatalog {
     [OutputType([System.Collections.Specialized.OrderedDictionary])]
     [CmdletBinding()]
@@ -341,37 +371,6 @@ function Get-GerberSecretsCommandCatalog {
     }
 }
 
-function Get-GerberRepositoryCommandCatalog {
-    [OutputType([System.Collections.Specialized.OrderedDictionary])]
-    [CmdletBinding()]
-    param()
-
-    return [ordered]@{
-        create = ConvertTo-GerberCommandCatalogEntry -Description 'Create a new repository from template'
-    }
-}
-
-function Get-GerberPipelinesCommandCatalog {
-    [OutputType([System.Collections.Specialized.OrderedDictionary])]
-    [CmdletBinding()]
-    param()
-
-    return [ordered]@{
-        tags    = ConvertTo-GerberCommandCatalogEntry -Description 'Open the pipeline tag submenu' -Subcommands (Get-GerberPipelinesTagsCommandCatalog)
-    }
-}
-
-function Get-GerberPipelinesTagsCommandCatalog {
-    [OutputType([System.Collections.Specialized.OrderedDictionary])]
-    [CmdletBinding()]
-    param()
-
-    return [ordered]@{
-        delete = ConvertTo-GerberCommandCatalogEntry -Description 'Delete one build tag across selected tagged pipeline runs'
-        update = ConvertTo-GerberCommandCatalogEntry -Description 'Replace one build tag with another across selected tagged pipeline runs'
-    }
-}
-
 function Get-GerberCommandPathTokenData {
     [OutputType([pscustomobject])]
     [CmdletBinding()]
@@ -380,24 +379,46 @@ function Get-GerberCommandPathTokenData {
         [string]$InputText
     )
 
-    $trimmedInput = $InputText.Trim()
-    $hasTrailingSpace = $InputText -match '\s$'
-    $originalTokenList = if ([string]::IsNullOrWhiteSpace($trimmedInput.TrimStart('/'))) {
-        @('')
-    } else {
-        @($trimmedInput.TrimStart('/') -split '\s+')
+    $originalTokenList = @(Split-GerberOriginalCommandToken -InputText $InputText)
+    return ConvertTo-GerberCommandPathTokenData -InputText $InputText -OriginalTokenList $originalTokenList
+}
+
+function Split-GerberOriginalCommandToken {
+    param(
+        [string]$InputText
+    )
+
+    $trimmedInput = $InputText.Trim().TrimStart('/')
+    if ([string]::IsNullOrWhiteSpace($trimmedInput)) {
+        return @('')
     }
-    $normalizedTokenList = @(
-        foreach ($token in $originalTokenList) {
+    return @($trimmedInput -split '\s+')
+}
+
+function ConvertTo-GerberNormalizedCommandToken {
+    param(
+        [object[]]$OriginalTokenList
+    )
+
+    return @(
+        foreach ($token in $OriginalTokenList) {
             $token.ToLowerInvariant()
         }
     )
+}
 
+function ConvertTo-GerberCommandPathTokenData {
+    param(
+        [string]$InputText,
+        [object[]]$OriginalTokenList
+    )
+
+    $normalizedTokenList = @(ConvertTo-GerberNormalizedCommandToken -OriginalTokenList $OriginalTokenList)
     return [pscustomobject][ordered]@{
         CommandName = $normalizedTokenList[0]
-        OriginalTokenList = $originalTokenList
+        OriginalTokenList = $OriginalTokenList
         NormalizedTokenList = $normalizedTokenList
-        HasTrailingSpace = $hasTrailingSpace
+        HasTrailingSpace = $InputText -match '\s$'
     }
 }
 
@@ -411,13 +432,22 @@ function Get-GerberUnknownCommandResolution {
         [string]$InputText
     )
 
+    return ConvertTo-GerberUnknownRootResolution @PSBoundParameters
+}
+
+function ConvertTo-GerberUnknownRootResolution {
+    [CmdletBinding()]
+    param(
+        [hashtable]$Catalog,
+        [string]$InputText
+    )
+
     $normalizedInput = $InputText.TrimStart('/').ToLowerInvariant()
     $suggestionList = @(Get-GerberRootSuggestionList -Catalog $Catalog -InputToken $normalizedInput)
     return ConvertTo-GerberResolvedCommand `
-        -IsValid $false `
+        -Outcome (ConvertTo-GerberCommandOutcome -IsValid $false -ErrorMessage (Get-GerberUnknownCommandMessage -InputText $InputText -SuggestionList $suggestionList)) `
         -Name $null `
         -Arguments @() `
-        -ErrorMessage (Get-GerberUnknownCommandMessage -InputText $InputText -SuggestionList $suggestionList) `
         -Suggestions $suggestionList
 }
 
@@ -434,40 +464,120 @@ function Get-GerberKnownCommandResolution {
         [string]$InputText
     )
 
-    $commandData = $Catalog[$TokenData.CommandName]
-    $commandPathTokenList = @($TokenData.NormalizedTokenList[0])
-    $pathIndex = 1
-    $currentCommandData = $commandData
+    $path = Resolve-GerberKnownCommandPath -Catalog $Catalog -TokenData $TokenData
+    return ConvertTo-GerberKnownPathResolution -Path $path -TokenData $TokenData -InputText $InputText
+}
 
-    while ($pathIndex -lt $TokenData.NormalizedTokenList.Count) {
-        $subcommandTable = Get-GerberCatalogEntrySubcommandTable -Entry $currentCommandData
-        if ($subcommandTable.Count -eq 0) {
+function Resolve-GerberKnownCommandPath {
+    param(
+        [hashtable]$Catalog,
+        [pscustomobject]$TokenData
+    )
+
+    $path = [pscustomobject]@{
+        CurrentCommandData = $Catalog[$TokenData.CommandName]
+        CommandPathTokenList = @($TokenData.NormalizedTokenList[0])
+        Index = 1
+        UnknownSubcommand = $null
+    }
+    Complete-GerberKnownCommandPath -Path $path -TokenData $TokenData
+    return $path
+}
+
+function Complete-GerberKnownCommandPath {
+    param(
+        [pscustomobject]$Path,
+        [pscustomobject]$TokenData
+    )
+
+    while ($Path.Index -lt $TokenData.NormalizedTokenList.Count) {
+        if (-not (Move-GerberKnownCommandPath -Path $Path -TokenData $TokenData)) {
             break
         }
-
-        $subcommandInput = $TokenData.NormalizedTokenList[$pathIndex]
-        if (-not $subcommandTable.Contains($subcommandInput)) {
-            return Get-GerberUnknownSubcommandResolution `
-                -InputText $InputText `
-                -CommandPathTokenList $commandPathTokenList `
-                -CurrentCommandData $currentCommandData `
-                -SubcommandInput $subcommandInput
-        }
-
-        $commandPathTokenList += $subcommandInput
-        $currentCommandData = $subcommandTable[$subcommandInput]
-        $pathIndex++
     }
+}
+
+function Move-GerberKnownCommandPath {
+    param(
+        [pscustomobject]$Path,
+        [pscustomobject]$TokenData
+    )
+
+    $subcommandTable = Get-GerberCatalogEntrySubcommandTable -Entry $Path.CurrentCommandData
+    if ($subcommandTable.Count -eq 0) {
+        return $false
+    }
+    $subcommandInput = $TokenData.NormalizedTokenList[$Path.Index]
+    return Complete-GerberKnownCommandPathStep -Path $Path -Subcommands $subcommandTable -InputToken $subcommandInput
+}
+
+function Complete-GerberKnownCommandPathStep {
+    param(
+        [pscustomobject]$Path,
+        [System.Collections.IDictionary]$Subcommands,
+        [string]$InputToken
+    )
+
+    if (-not $Subcommands.Contains($InputToken)) {
+        $Path.UnknownSubcommand = $InputToken
+        return $false
+    }
+    $Path.CommandPathTokenList += $InputToken
+    $Path.CurrentCommandData = $Subcommands[$InputToken]
+    $Path.Index++
+    return $true
+}
+
+function ConvertTo-GerberKnownPathResolution {
+    param(
+        [pscustomobject]$Path,
+        [pscustomobject]$TokenData,
+        [string]$InputText
+    )
+
+    if ($null -ne $Path.UnknownSubcommand) {
+        return ConvertTo-GerberUnknownPathResolution -Path $Path -InputText $InputText
+    }
+    return ConvertTo-GerberValidPathResolution -Path $Path -TokenData $TokenData
+}
+
+function ConvertTo-GerberUnknownPathResolution {
+    param(
+        [pscustomobject]$Path,
+        [string]$InputText
+    )
+
+    return Get-GerberUnknownSubcommandResolution `
+        -InputText $InputText `
+        -CommandPathTokenList $Path.CommandPathTokenList `
+        -CurrentCommandData $Path.CurrentCommandData `
+        -SubcommandInput $Path.UnknownSubcommand
+}
+
+function ConvertTo-GerberValidPathResolution {
+    param(
+        [pscustomobject]$Path,
+        [pscustomobject]$TokenData
+    )
 
     $arguments = @($TokenData.OriginalTokenList | Select-Object -Skip 1)
-    $remainingTokenCount = $TokenData.NormalizedTokenList.Count - $pathIndex
-    if ((Test-GerberCommandHasSubcommandMenu -CommandData $currentCommandData) -and ($remainingTokenCount -eq 0)) {
-        $resolvedCommandName = $commandPathTokenList -join ' '
-        $suggestionList = @(Get-GerberNamedSubcommandSuggestionList -CommandName $resolvedCommandName -SubcommandTable (Get-GerberCatalogEntrySubcommandTable -Entry $currentCommandData))
-        return ConvertTo-GerberResolvedCommand -IsValid $true -Name $TokenData.CommandName -Arguments $arguments -ErrorMessage $null -Suggestions $suggestionList
-    }
+    $suggestionList = @(Select-GerberKnownPathSuggestion -Path $Path -TokenData $TokenData)
+    return ConvertTo-GerberResolvedCommand -Name $TokenData.CommandName -Arguments $arguments -Suggestions $suggestionList `
+        -Outcome (ConvertTo-GerberCommandOutcome -IsValid $true -ErrorMessage $null)
+}
 
-    return ConvertTo-GerberResolvedCommand -IsValid $true -Name $TokenData.CommandName -Arguments $arguments -ErrorMessage $null -Suggestions @()
+function Select-GerberKnownPathSuggestion {
+    param(
+        [pscustomobject]$Path,
+        [pscustomobject]$TokenData
+    )
+
+    if ((Test-GerberCommandHasSubcommandMenu -CommandData $Path.CurrentCommandData) -and
+            ($TokenData.NormalizedTokenList.Count -eq $Path.Index)) {
+        return Get-GerberNamedSubcommandSuggestionList -CommandName ($Path.CommandPathTokenList -join ' ') `
+            -SubcommandTable (Get-GerberCatalogEntrySubcommandTable -Entry $Path.CurrentCommandData)
+    }
+    return @()
 }
 
 function Test-GerberCommandHasSubcommandMenu {
@@ -497,13 +607,21 @@ function Get-GerberUnknownSubcommandResolution {
         [string]$SubcommandInput
     )
 
-    $commandName = $CommandPathTokenList -join ' '
-    $suggestionList = @(Get-GerberNamedSubcommandSuggestionList -CommandName $commandName -SubcommandTable (Get-GerberCatalogEntrySubcommandTable -Entry $CurrentCommandData) -SubcommandInput $SubcommandInput)
+    return ConvertTo-GerberUnknownSubcommandOutcome -Request ([pscustomobject]$PSBoundParameters)
+}
+
+function ConvertTo-GerberUnknownSubcommandOutcome {
+    param(
+        [pscustomobject]$Request
+    )
+
+    # Request fields/types were validated by Get-GerberUnknownSubcommandResolution.
+    $commandName = $Request.CommandPathTokenList -join ' '
+    $suggestionList = @(Get-GerberNamedSubcommandSuggestionList -CommandName $commandName -SubcommandTable (Get-GerberCatalogEntrySubcommandTable -Entry $Request.CurrentCommandData) -SubcommandInput $Request.SubcommandInput)
     return ConvertTo-GerberResolvedCommand `
-        -IsValid $false `
+        -Outcome (ConvertTo-GerberCommandOutcome -IsValid $false -ErrorMessage (Get-GerberUnknownCommandMessage -InputText $Request.InputText.Trim() -SuggestionList $suggestionList)) `
         -Name $null `
         -Arguments @() `
-        -ErrorMessage (Get-GerberUnknownCommandMessage -InputText $InputText.Trim() -SuggestionList $suggestionList) `
         -Suggestions $suggestionList
 }
 
@@ -653,6 +771,7 @@ function Get-GerberMatchingTokenList {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
         [System.Collections.IEnumerable]$CandidateList,
 
         [Parameter(Mandatory)]
@@ -661,6 +780,9 @@ function Get-GerberMatchingTokenList {
     )
 
     $candidateNameList = @(Get-GerberAlphabeticallySortedStringList -ValueList $CandidateList)
+    if ($candidateNameList.Count -eq 0) {
+        return @()
+    }
     if ([string]::IsNullOrWhiteSpace($InputToken)) {
         return $candidateNameList
     }
@@ -883,23 +1005,35 @@ function ConvertTo-GerberResolvedCommand {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [bool]$IsValid,
+        [System.Tuple[bool, string]]$Outcome,
 
         [AllowNull()]
         [string]$Name,
 
         [string[]]$Arguments = @(),
 
-        [string]$ErrorMessage,
-
         [object[]]$Suggestions = @()
     )
 
     return [pscustomobject][ordered]@{
-        IsValid = $IsValid
+        IsValid = $Outcome.Item1
         Name = $Name
         Arguments = $Arguments
-        ErrorMessage = $ErrorMessage
+        ErrorMessage = $Outcome.Item2
         Suggestions = $Suggestions
     }
+
+}
+
+function ConvertTo-GerberCommandOutcome {
+    [OutputType([System.Tuple[bool, string]])]
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [bool]$IsValid,
+        [string]$ErrorMessage
+    )
+
+    # Immutable, typed outcome: Item1 is validity; Item2 is the diagnostic.
+    return [System.Tuple[bool, string]]::new($IsValid, $ErrorMessage)
 }

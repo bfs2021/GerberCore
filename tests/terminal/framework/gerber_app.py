@@ -134,6 +134,7 @@ class GerberTerminalApp:
         enable_synthetic_plugin: bool,
     ) -> dict[str, str]:
         environment = os.environ.copy()
+        environment["GERBER_TERMINAL_RUNTIME_MODULE_PATH"] = environment.get("PSModulePath", "")
         environment["PSModulePath"] = self._build_module_path(
             enable_synthetic_plugin=enable_synthetic_plugin,
         )

@@ -300,10 +300,6 @@ def root_suggestions_are_alphabetical(context) -> None:
         "/help",
         "/plugins",
         "/update",
-        "/branch",
-        "/list",
-        "/pipelines",
-        "/repository",
         "/secrets",
         "/tools",
     ])
@@ -334,19 +330,19 @@ def suggestion_navigation_up_and_down(context) -> None:
 def preview_tracks_selected_suggestion(context) -> None:
     context.app.start()
     context.app.wait_for_prompt()
-    context.app.type("/repo")
-    context.app.expect_selected_suggestion("/repository")
-    context.app.expect_preview("Open the interactive repository menu")
+    context.app.type("/too")
+    context.app.expect_selected_suggestion("/tools")
+    context.app.expect_preview("Open the interactive tools menu")
 
 
 @scenario("selection-follows-editing", title="Selection follows editing", categories=("core", "suggestions", "editing"))
 def selection_follows_editing(context) -> None:
     context.app.start()
     context.app.wait_for_prompt()
-    context.app.type("/repot")
+    context.app.type("/toot")
     context.app.press("BACKSPACE")
-    context.app.expect_selected_suggestion("/repository")
-    context.app.expect_preview("Open the interactive repository menu")
+    context.app.expect_selected_suggestion("/tools")
+    context.app.expect_preview("Open the interactive tools menu")
 
 
 @scenario("selected-suggestion-preview-correspondence", title="Selected suggestion preview correspondence", categories=("core", "suggestions"))
@@ -435,14 +431,10 @@ def registered_command_discovery(context) -> None:
     title="Root menu dispatch contracts",
     categories=("core", "navigation", "rendering", "submission"),
     metadata=ScenarioMetadata(
-        commands=("tools", "list", "branch", "repository", "plugins", "pipelines", "secrets"),
+        commands=("tools", "plugins", "secrets"),
         workflows=(
             "command:tools",
-            "command:list",
-            "command:branch",
-            "command:repository",
             "command:plugins",
-            "command:pipelines",
             "command:secrets",
         ),
         coverage=("dispatch", "workflow", "navigation", "rendering"),
@@ -451,11 +443,7 @@ def registered_command_discovery(context) -> None:
 def root_menu_dispatch_contracts(context) -> None:
     expectation_map = {
         "tools": "/tools base-64",
-        "list": "/list ado-agents",
-        "branch": "/branch find",
-        "repository": "/repository create",
         "plugins": "/plugins info",
-        "pipelines": "/pipelines tags",
         "secrets": "/secrets get",
     }
     _verify_menu_dispatch_contracts(context, expectation_map)
@@ -466,10 +454,9 @@ def root_menu_dispatch_contracts(context) -> None:
     title="Nested menu dispatch contracts",
     categories=("core", "navigation", "rendering", "submission"),
     metadata=ScenarioMetadata(
-        commands=("tools base-64", "pipelines tags"),
+        commands=("tools base-64",),
         workflows=(
             "command:tools base-64",
-            "command:pipelines tags",
         ),
         coverage=("dispatch", "workflow", "navigation", "rendering"),
     ),
@@ -477,7 +464,6 @@ def root_menu_dispatch_contracts(context) -> None:
 def nested_menu_dispatch_contracts(context) -> None:
     expectation_map = {
         "tools base-64": "/tools base-64 decode",
-        "pipelines tags": "/pipelines tags delete",
     }
     _verify_menu_dispatch_contracts(context, expectation_map)
 

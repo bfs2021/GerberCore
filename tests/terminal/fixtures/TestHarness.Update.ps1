@@ -1,5 +1,6 @@
 # Loaded only into the disposable PTY Gerber module instance. Never calls a real provider.
 $script:GerberTerminalUpdateStartup = $false
+. (Join-Path $PSScriptRoot 'TestHarness.UpdateBatch.ps1')
 function script:Get-GerberTerminalUpdateFixture {
     param()
     if (-not (Test-Path -LiteralPath $script:GerberTerminalUpdateFixturePath)) {
@@ -38,18 +39,16 @@ function script:Invoke-GerberUpdateProbe {
 
 function script:Get-PSModuleUpdate {
     [CmdletBinding()]
-    param([object]$Module, [string]$Repository, [hashtable]$Policy, [pscredential]$Credential)
+    param([object]$Module, [Alias('RepositoryUri')][object]$Repository, [hashtable]$Policy, [pscredential]$Credential)
     Assert-GerberTerminalUpdateRequest $Module $Repository $Policy $Credential
     $fixture = Get-GerberTerminalUpdateFixture
-    $state = Get-GerberTerminalUpdateState
-    if ($script:GerberTerminalUpdateStartup) { $state.startupDiscoveryCount++ } else { $state.discoveryCount++ }
-    $state.repository = $Repository
-    $state.channel = $Policy.Channel
-    if ($script:GerberTerminalUpdateStartup) { $state.startupChannel = $Policy.Channel }
-    Write-GerberTerminalUpdateState $state
-    Assert-GerberTerminalUpdateDiscovery $fixture $state
-    $script:GerberTerminalLiveUpdatePlan = Get-GerberTerminalUpdatePlan $fixture $Policy.Channel
-    $script:GerberTerminalLiveUpdatePlan
+    $state = Write-GerberTerminalUpdateDiscovery $Module $Repository $Policy
+    if ($Module.Name -eq 'Gerber') {
+        Assert-GerberTerminalUpdateDiscovery $fixture $state
+    }
+    $plan = Get-GerberTerminalUpdatePlanForModule $Module $Repository $Policy $fixture
+    $script:GerberTerminalLiveUpdatePlans[$Module.Name] = $plan
+    $plan
 }
 
 function script:Assert-GerberTerminalUpdateDiscovery {
@@ -67,11 +66,35 @@ function script:Test-GerberTerminalUpdateFailure {
 }
 
 function script:Assert-GerberTerminalUpdateRequest {
-    param([object]$Module, [string]$Repository, [hashtable]$Policy, [pscredential]$Credential)
-    if ($Module.Name -ne 'Gerber' -or $Repository -cne 'PSGallery') { throw 'Unexpected terminal update target.' }
-    if ($Policy.Channel -cnotin @('Stable', 'IncludePrerelease') -or $Policy.Scope -cne 'CurrentUser') { throw 'Unexpected terminal update policy.' }
-    if ($Policy.ExpectedRepositoryUri.AbsoluteUri -cne 'https://www.powershellgallery.com/api/v2') { throw 'Unexpected terminal update endpoint.' }
-    if ($null -ne $Credential) { throw 'Core must not request credentials.' }
+    param([object]$Module, [object]$Repository, [hashtable]$Policy, [pscredential]$Credential)
+    if ($Module.Name -ne 'Gerber') {
+        return Assert-GerberTerminalPluginUpdateRequest $Module $Repository $Policy
+    }
+    Assert-GerberTerminalCoreUpdatePolicy $Repository $Policy $Credential
+}
+
+function script:Assert-GerberTerminalCoreUpdatePolicy {
+    param([string]$Repository, [hashtable]$Policy, [pscredential]$Credential)
+    if ($Repository -cne 'PSGallery') {
+        throw 'Unexpected terminal update target.'
+    }
+    if ($Policy.Channel -cnotin @('Stable', 'IncludePrerelease')) {
+        throw 'Unexpected terminal update policy.'
+    }
+    Assert-GerberTerminalCoreUpdateEndpoint $Policy $Credential
+}
+
+function script:Assert-GerberTerminalCoreUpdateEndpoint {
+    param([hashtable]$Policy, [pscredential]$Credential)
+    if ($Policy.Scope -cne 'CurrentUser') {
+        throw 'Unexpected terminal update policy.'
+    }
+    if ($Policy.ExpectedRepositoryUri.AbsoluteUri -cne 'https://www.powershellgallery.com/api/v2') {
+        throw 'Unexpected terminal update endpoint.'
+    }
+    if ($null -ne $Credential) {
+        throw 'Core must not request credentials.'
+    }
 }
 
 function script:Get-GerberTerminalUpdatePlan {
@@ -80,17 +103,22 @@ function script:Get-GerberTerminalUpdatePlan {
     $target = if ($Fixture.Contains('targetVersion')) { $Fixture.targetVersion } else { '0.2.0' }
     [pscustomobject]@{
         ModuleName = 'Gerber'; InstalledVersion = $installed; TargetVersion = $target
+        ModuleGuid = 'ec5ae6fe-540b-48c2-a6d1-cb39aac6c444'
+        TargetInstalledPath = Join-Path (Split-Path $script:GerberTerminalUpdateFixturePath) 'simulated-core-target'
         RepositoryName = 'PSGallery'; UpdateAvailable = $Fixture.disposition -eq 'UpdateAvailable'
         RepositoryUri = 'https://www.powershellgallery.com/api/v2'; Channel = $Channel; Scope = 'CurrentUser'
         Disposition = $Fixture.disposition; RestartRequired = $false
         RequiresRepositoryTrust = $false; RequiresLicenseAcceptance = $false
     }
+}
 
-    $script:GerberTerminalSaveConfiguration = ${function:Save-GerberUserConfiguration}
-    function script:Save-GerberUserConfiguration {
+$script:GerberTerminalSaveConfiguration = ${function:Save-GerberUserConfiguration}
+function script:Save-GerberUserConfiguration {
         [CmdletBinding(SupportsShouldProcess)]
         param([object]$Configuration)
-        if (-not $PSCmdlet.ShouldProcess('disposable terminal configuration', 'Save')) { return }
+        if (-not $PSCmdlet.ShouldProcess('disposable terminal configuration', 'Save')) {
+            return
+        }
         $fixture = Get-GerberTerminalUpdateFixture
         if ($fixture.Contains('failPolicySaveCount') -and $fixture.failPolicySaveCount -gt 0) {
             $fixture.failPolicySaveCount--
@@ -98,21 +126,16 @@ function script:Get-GerberTerminalUpdatePlan {
             throw [IO.IOException]::new('Simulated configuration write failure.')
         }
         & $script:GerberTerminalSaveConfiguration -Configuration $Configuration -Confirm:$false
-    }
 }
 
 function script:Install-PSModuleUpdate {
     [CmdletBinding(SupportsShouldProcess)]
     param([object]$Update, [pscredential]$Credential, [switch]$TrustRepository, [switch]$AcceptLicense)
     $null = $Credential, $TrustRepository, $AcceptLicense
-    if (-not [object]::ReferenceEquals($Update, $script:GerberTerminalLiveUpdatePlan)) { throw 'A stale terminal plan was supplied.' }
+    Assert-GerberTerminalLiveUpdatePlan $Update
     if (-not $PSCmdlet.ShouldProcess('disposable terminal fixture', 'Record simulated installation')) { return }
-    $state = Get-GerberTerminalUpdateState
-    $state.installCount++
-    Write-GerberTerminalUpdateState $state
+    Write-GerberTerminalBatchInstall $Update
     $fixture = Get-GerberTerminalUpdateFixture
-    if ($fixture.Contains('installError')) {
-        Write-Error -ErrorId $fixture.installError -Message (Get-GerberTerminalUpdateErrorMessage $fixture) -ErrorAction Stop
-    }
-    [pscustomobject]@{ Outcome = 'Installed'; VerificationStatus = 'Verified'; RecoveryStatus = 'NotRequired'; RestartRequired = $true }
+    Assert-GerberTerminalInstallOutcome $Update $fixture
+    Get-GerberTerminalInstallResult $Update
 }

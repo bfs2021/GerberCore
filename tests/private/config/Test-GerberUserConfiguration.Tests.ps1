@@ -43,17 +43,6 @@ Describe 'Test-GerberUserConfiguration' {
         @{
             Configuration = @{
                 schemaVersion = 1
-                ado = @{
-                    profiles = @{
-                        example = 'invalid'
-                    }
-                }
-            }
-            ErrorMessage = "*profile 'example' must be a JSON object*"
-        }
-        @{
-            Configuration = @{
-                schemaVersion = 1
                 plugins = @{
                     associated = @{
                         invalid = @{
@@ -70,5 +59,11 @@ Describe 'Test-GerberUserConfiguration' {
         $configurationToTest = $Configuration
         { Test-GerberUserConfiguration -Configuration $configurationToTest -Path '/tmp/config.json' } |
             Should -Throw $ErrorMessage
+    }
+
+    It 'preserves unknown product fields without running ADO domain validation' {
+        $configuration = @{ schemaVersion = 1; ado = @{ profiles = @{ example = 'plugin-owned' } } }
+        { Test-GerberUserConfiguration -Configuration $configuration -Path 'GerberCore.json' } | Should -Not -Throw
+        $configuration.ado.profiles.example | Should -Be 'plugin-owned'
     }
 }

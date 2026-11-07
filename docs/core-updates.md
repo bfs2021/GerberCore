@@ -1,16 +1,24 @@
-# Gerber Core updates
+# Gerber Core and plugin updates
 
 Gerber uses PSModuleUpdate (PMU) for Core discovery, version selection,
 installation, verification and recovery. Gerber owns the repository policy,
 the overview and your confirmation. Both PMU and NovaModuleTools remain required
 modules; Nova's plugin-development operations are unrelated to update installation.
-**Plugin updates are planned, not implemented in this phase.**
+The local G-4A9 implementation extends manual `/update list` discovery and
+selection to eligible installed plugins. Startup remains Core-only.
 
 ## PMU dependency and deployment
 
 Gerber requires numeric PMU **0.2.0** or later, as declared in `project.json`.
 PMU 0.2.0 is published on PSGallery and includes the earlier installed-copy
 scan correction. Gerber does not add its own version comparator.
+
+**Plugin-update dependency delivery is still open.** The new public PMU target
+manifest inspection capability is implemented locally, not published.
+Published 0.2.0 satisfies Gerber's unchanged declared minimum but does not contain
+those new APIs. Source/build/unit/PTY evidence is not proof that an installed
+Gerber launcher can resolve them. No dependency deployment, version bump or
+live installation is performed by this change.
 
 The historical unpublished-dependency blocker is resolved. Installing or updating
 the dependency remains a separate, explicitly approved deployment action, not part
@@ -48,10 +56,36 @@ unrelated settings and plugin configuration are left intact. `GERBER_CONFIG_PATH
 selects the user configuration file for the Core channel as well as other user
 settings; it cannot override Core's repository, endpoint or installation scope.
 
-Plugins have independently configurable repositories owned by Gerber; different
-plugins may use different feeds. Both Core and plugins use PMU, but Core's
-resolver does not consult plugin metadata or configuration. The per-plugin
-contract and plugin update implementation remain **G-4A9**; this task adds neither.
+In authored `project.json`, each plugin declares
+`Manifest.PrivateData.Gerber.Repository = { "Name": "ExampleFeed", "Uri": "https://packages.example.test/api/v2" }`.
+Nova carries that canonical descriptor into the installed manifest:
+
+```powershell
+PrivateData = @{
+    Gerber = @{
+        Plugin = $true
+        ApiVersion = '1'
+        MinimumGerberVersion = '0.2.0'
+        Repository = @{
+            Name = 'ExampleFeed'
+            Uri = 'https://packages.example.test/api/v2'
+        }
+    }
+}
+```
+
+The overview shows `Repository.Name`, including `Unavailable` and
+`NoMatchingPackage` lookup results; PMU receives `Repository.Uri`. Trust/license
+confirmation continues to show the actual URL, not merely its display name.
+Gerber reads the current installed manifest, not cached module PrivateData.
+Absent repository metadata defaults to `PSGallery` and
+`https://www.powershellgallery.com/api/v2`; invalid explicit metadata never
+falls back. Legacy `RepositoryUri` remains compatible: the official Gallery URL
+maps to PSGallery, while other URLs keep their raw display until a name is added.
+When both keys exist, the canonical `Repository` object wins, even if the legacy
+value is invalid. Do not introduce an intermediate `Update` key, repository
+registration requirement or credentials in metadata. Different plugins can use
+different feeds. Core's resolver never consults this metadata.
 
 ## Prerelease policy
 
@@ -69,7 +103,9 @@ use arrow keys to choose, `Enter` to save, or `Esc` to return without changes.
 After saving, `Enter` returns to the `/update` submenu. Reselecting the same channel
 does not write configuration.
 
-The choice persists in the existing user configuration (schema version 1):
+The same choice applies to Core and plugin discovery; plugins have no separate
+channel setting. Startup still checks Core only. The choice persists in the
+existing user configuration (schema version 1):
 
 ```json
 {
@@ -155,6 +191,53 @@ selection also returns to that chooser; a further Esc goes back toward home.
 
 ## Qualification and remaining scope
 
+### Installed-plugin update selection
+
+Manual `/update list` includes only already installed, discovered, associated,
+approved, enabled plugins. It does not offer a first installation, load a newly
+installed plugin into the current session or change its approval.
+Core and plugins share one aligned table with Component, Name, Installed,
+Available, Repository and Status columns. A blank line separates the table from
+the shared channel, which appears once. The overview has no per-plugin
+information lines; unavailable or blocked status remains in the table.
+All status rows remain visible; only `Available` rows can be selected.
+Use Up/Down and Space in the shared checkbox, then Enter to review.
+An empty selection cancels; Esc follows the existing back-navigation rules.
+After any repository-authentication step, if no component has an available
+update, no update-selection or installation-confirmation prompt opens. Press
+Enter to return to `/update`; this is not reported as a cancellation.
+Without an interactive terminal, discovery renders all rows without prompts,
+credentials or installation.
+
+Gerber inspects the exact selected package's manifest before installation to
+validate plugin GUID, Plugin API v1 and `MinimumGerberVersion`. If PMU requires
+repository trust or package-license acceptance for inspection, a separate
+default-Cancel prompt names the source and grants consent only for temporary
+package download/inspection—not installation. Declining stops the selection.
+Ordinary inspection without those requirements adds no prompt.
+
+When a selected plugin needs a newer Core, a permitted Core candidate is
+automatically added visibly to the combined preview. If no permitted Core
+candidate satisfies it, the plugin remains visible as `Blocked` with a reason.
+The final default-Cancel confirmation shows full versions, source, scope, Core
+requirements and operation-local trust/license choices for the actual install.
+Credentials are supplied through Gerber's existing text/secure-input patterns
+for this operation only; they are not saved or fetched from native storage.
+
+Gerber determines the selected numeric installation's CurrentUser/AllUsers scope
+without substituting another installation; PMU still independently validates
+that installation during planning and installation.
+
+After acceptance, PMU receives the original live plans, sequentially and Core
+first. A Core failure blocks dependent plugins but not independent selections.
+An individual plugin failure does not stop independent later attempts; user
+cancellation does. There is no batch rollback. Results report each item's
+installation, verification, recovery and isolated fresh-process activation
+separately. `Installed` remains truthful even if activation fails. Restart
+PowerShell before using installed components; neither Core nor plugins hot reload.
+
+### Evidence boundaries
+
 Core behavior has automated coverage using mocked PMU boundaries, disposable child
 processes, built-module import and PTY terminal scenarios. Earlier local
 qualification used macOS/PowerShell 7.4.21. On 2026-10-27, a user-reported live
@@ -189,9 +272,32 @@ The earlier installed PMU `0.1.0-preview` exposed two separate limitations:
   `NoMatchingPackage` is used only for PMU's explicit `PMU.PackageNotFound`.
   Gerber does not add a second package query or parse error text to guess.
 
-The upstream `PackageNotFound` correction and broader live-update/recovery
-qualification remain open. A local correction must not be presented as a
-published or deployed fix, and the dependency minimum is not raised speculatively.
+The upstream `PackageNotFound` correction was implemented locally on 2026-10-30
+after a separately committed characterization/cleanup step (`9330a8b` in PMU).
+It matches only the exact structured base identifier, including command suffixes,
+and preserves safe diagnostics and other error handling. Six regression cases
+failed before the fix; all 14 focused cases passed afterward. Public planning
+returns no plan on this failure, and a disappeared exact installation target
+still fails without substituting another version.
+PMU's full local quality loop passed on macOS ARM64/PowerShell 7.6.9 with 868 unit
+passes, six integration passes, 98.09% coverage and zero ScriptAnalyzer findings;
+one Windows-only unit and three opt-in live-feed integration tests skipped.
+All five touched supported files measured Code Health 10.0; the safeguard passed.
+
+Gerber's full local `run.ps1` also passed against that corrected PMU build,
+resolved through process-local `PSModulePath` without modifying installed modules.
+It passed 1,858 unit tests, 17 integration tests and all 84 PTY scenarios, with
+96.53% coverage and zero analyzer findings; two native credential scenarios
+remained opt-in skips. Existing consumer assertions preserve `NoMatchingPackage`,
+no plan or installation offer, and `Unavailable` for unrelated failures.
+Gerber production code and tests were unchanged. Detailed attempt boundaries
+are recorded in the [work register](../PLAN.md#g-4a7r-closure-evidence-and-remaining-work).
+
+The correction remains uncommitted, unpublished and undeployed; the current
+minimum still permits published PMU 0.2.0 with the defect. Delivering the corrected
+dependency requires a separate authorized task. PowerShell 7.4, PMU's six hosted
+lanes and broader Gerber live-update/recovery qualification remain unverified
+for this correction. The dependency minimum is not raised speculatively.
 Historically, a read-only PSResourceGet lookup returned no Gerber package in
 PSGallery and direct PMU lookup stopped at the identity issue before the correction.
 Those earlier observations are not current feed state.
@@ -230,7 +336,8 @@ and the update view offers no installation for this discovery failure.
 An already-installed/running Gerber copy retains its old diagnostic until the
 user separately updates that copy; editing this checkout does not change it.
 
-Plugin repository association, per-plugin selection, approval/GUID continuity
-and post-update activation still need their separate G-4A9 implementation and tests.
+The local G-4A9 implementation and isolated tests do not close dependency
+publication/deployment, hosted validation or live plugin-feed installation and
+recovery qualification. G-4A7R's remaining evidence requirements above are unchanged.
 The authoritative [G-4A5 architecture](architecture/G-4A5-update-architecture.md)
 and [D-017](../DECISIONS.md) include the G-4A7R repository-policy clarification.

@@ -1,10 +1,19 @@
 BeforeAll {
     $root = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
     . "$root/src/private/update/Format-GerberCoreUpdateOverview.ps1"
+    . "$root/src/private/config/Get-GerberCoreUpdateChannelLabel.ps1"
 }
 
-Describe 'Format-GerberCoreUpdateOverview' -Tag 'G4A7' {
+Describe 'Format-GerberCoreUpdateOverview' -Tag 'G4A7', 'G4A9UI' {
     Context 'shared summary and confirmation table' {
+        It 'separates the channel from the table with one empty line' {
+            $state = [pscustomobject]@{
+                Name = 'Gerber'; Installed = '0.1.0'; Available = '0.1.0'
+                Repository = 'PSGallery'; Status = 'UpToDate'; Channel = 'IncludePrerelease'
+            }
+            Format-GerberCoreUpdateOverview $state |
+                Should -Match 'UpToDate[^\S\n]*\r?\n\r?\nChannel: Include prereleases\.\s*$'
+        }
         It 'does not invent a channel when configuration discovery failed before policy resolution' {
             $state = [pscustomobject]@{
                 Name = 'Gerber'; Installed = '0.1.0'; Available = '-'

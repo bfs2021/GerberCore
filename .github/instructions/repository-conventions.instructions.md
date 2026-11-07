@@ -79,7 +79,9 @@ credentials on Windows, Linux and macOS; it does not replace the full local
 quality loop or PTY coverage. Never execute its guarded native-credential
 entrypoint against a workstation vault. Before changing
 `project.json` `Manifest.RequiredModules`, check
-`scripts/build/ci/Install-CiPowerShellModules.ps1` and all explicit imports,
+`.github/workflows/Tests.yml`, `Publish.yml` and the `install-ps-modules` action
+of the shared `powershell-ci` repository, which installs `RequiredModules`
+from `project.json`, and all explicit imports,
 including `Invoke-NativeCredentialPlatformCI.ps1`. A local PMU prerelease can
 satisfy the numeric manifest minimum while PSGallery provisioning still cannot;
 report that delivery gap instead of claiming a clean-runner import was proven.

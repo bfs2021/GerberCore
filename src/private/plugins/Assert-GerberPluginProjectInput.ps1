@@ -1,18 +1,44 @@
 function Assert-GerberPluginProjectInput {
     param([string]$Field, [AllowEmptyString()][string]$Value)
 
-    $null = $Value
     $validator = @{
-        Suffix = { Assert-GerberPluginProjectSuffix -Value $Value }
-        Namespace = { Assert-GerberPluginProjectNamespace -Value $Value }
-        ParentPath = { Assert-GerberPluginProjectParent -Value $Value }
-        Description = {
-            if ([string]::IsNullOrWhiteSpace($Value)) {
-                throw [System.ArgumentException]::new('Enter a description for the plugin.')
-            }
-        }
+        Suffix = 'Assert-GerberPluginProjectSuffix'
+        Namespace = 'Assert-GerberPluginProjectNamespace'
+        ParentPath = 'Assert-GerberPluginProjectParent'
+        Description = 'Assert-GerberPluginProjectDescription'
+        RepositoryUri = 'Assert-GerberPluginProjectRepositoryInput'
+        RepositoryName = 'Assert-GerberPluginProjectRepositoryName'
     }
-    & $validator[$Field]
+    & $validator[$Field] -Value $Value
+}
+
+function Assert-GerberPluginProjectRepositoryName {
+    param([AllowEmptyString()][string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        throw [System.ArgumentException]::new('Enter a repository name. Esc cancels without generating a plugin.')
+    }
+}
+
+function Assert-GerberPluginProjectDescription {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        throw [System.ArgumentException]::new('Enter a description for the plugin.')
+    }
+}
+
+function Assert-GerberPluginProjectRepositoryInput {
+    param([AllowEmptyString()][string]$Value)
+
+    if ($Value -ceq 'REPLACE_WITH_REPOSITORY_URI') {
+        return
+    }
+    try {
+        $null = ConvertTo-GerberPluginRepositoryUri -Value $Value
+    } catch [System.InvalidOperationException] {
+        throw [System.ArgumentException]::new('Enter an absolute repository URI without credentials, query or fragment. Press Enter for an unknown URI, or Esc to cancel.')
+    }
 }
 
 function Assert-GerberPluginProjectSuffix {
